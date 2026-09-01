@@ -4,15 +4,14 @@ import SwiftUI
 @main
 struct HumApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-    /// Deliberately a plain `let`, not `@StateObject`: the scene must not
-    /// observe the controller. See `AudioEngineController.shared`.
-    private let engine = AudioEngineController.shared
-
     var body: some Scene {
         MenuBarExtra {
-            PopoverView(engine: engine)
+            // Resolved inside the scene body, never as a stored property: a
+            // stored `let` would construct the controller during App value
+            // creation, ahead of NSApplication.run.
+            PopoverView(engine: AudioEngineController.shared)
         } label: {
-            MenuBarLabel(state: engine.menuBar)
+            MenuBarLabel(state: AudioEngineController.shared.menuBar)
         }
         .menuBarExtraStyle(.window)
     }
@@ -33,6 +32,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Belt-and-braces with LSUIElement: guarantees agent behaviour even when
         // the binary is run directly from the build directory via `swift run`.
         NSApp.setActivationPolicy(.accessory)
+
+        // Build the audio graph and install monitors now that AppKit is up.
+        AudioEngineController.shared.bootstrap()
+
+        // First run only; returns immediately afterwards.
+        SplashWindowController.shared.showIfFirstLaunch()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }

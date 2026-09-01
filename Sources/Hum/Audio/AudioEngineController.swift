@@ -1,6 +1,7 @@
 import AVFoundation
 import AppKit
 import Combine
+import KeyboardShortcuts
 import SwiftUI
 
 /// Focus-session lengths offered in the bottom chip row.
@@ -86,11 +87,10 @@ final class AudioEngineController: ObservableObject {
     // MARK: Engine
 
     private let engine = AVAudioEngine()
-    private let dsp: NoiseDSP
+    private var dsp: NoiseDSP
     private var sourceNode: AVAudioSourceNode?
 
-    private let hotkey = GlobalHotkey()
-    private var wasHotkeyTrusted = GlobalHotkey.isTrusted
+    private var didBootstrap = false
     private var focusDeadline: Date?
     private var tickTimer: Timer?
     private var visualTimer: Timer?
@@ -106,18 +106,45 @@ final class AudioEngineController: ObservableObject {
     private static let fadeOutSeconds: TimeInterval = 1.0
     private static let sliderRamp: Float = 0.03
 
-    init() {
-        let sampleRate = engine.outputNode.outputFormat(forBus: 0).sampleRate
-        let rate = sampleRate > 0 ? sampleRate : 48_000
-        dsp = NoiseDSP(sampleRate: rate)
+    /// Deliberately cheap. This runs while the App value is being created,
+    /// before `NSApplication.run`, so it must not touch the audio HAL, TCC, or
+    /// the notification centre: blocking here delays the run loop coming up and
+    /// leaves the status item without its click handler attached.
+    private init() {
+        dsp = NoiseDSP(sampleRate: Self.fallbackSampleRate)
+        applyParameters()
+    }
+
+    /// Everything the launch path cannot afford. Called once from
+    /// `applicationDidFinishLaunching`, i.e. after AppKit is running.
+    func bootstrap() {
+        guard !didBootstrap else { return }
+        didBootstrap = true
+
+        let reported = engine.outputNode.outputFormat(forBus: 0).sampleRate
+        let rate = reported > 0 ? reported : Self.fallbackSampleRate
+        if rate != Self.fallbackSampleRate {
+            // Rebuild at the device's real rate before the graph captures it.
+            dsp = NoiseDSP(sampleRate: rate)
+            applyParameters()
+        }
+
+        buildGraph(sampleRate: rate)
+        observeSleepWake()
+        // Carbon hotkey registration — no Accessibility permission, and it works
+        // immediately without the re-arm dance a global event monitor needed.
+        KeyboardShortcuts.onKeyUp(for: .togglePlayPause) { [weak self] in
+            self?.toggle()
+        }
+    }
+
+    private static let fallbackSampleRate: Double = 48_000
+
+    private func applyParameters() {
         dsp.targetVolume = 0
         dsp.profileIndex = profile.dspIndex
         dsp.cutoffHz = Self.cutoff(for: warmth)
         dsp.warmthNorm = Float(warmth)
-
-        buildGraph(sampleRate: rate)
-        observeSleepWake()
-        hotkey.start { [weak self] in self?.toggle() }
     }
 
     // MARK: Graph
@@ -263,16 +290,6 @@ final class AudioEngineController: ObservableObject {
     private func stopVisualPolling() {
         visualTimer?.invalidate()
         visualTimer = nil
-    }
-
-    /// Called when the popover appears or the app activates. Reinstalls the
-    /// global monitor the moment Accessibility trust appears, so the shortcut
-    /// starts working without a relaunch.
-    func rearmHotkeyIfNewlyTrusted() {
-        let trusted = GlobalHotkey.isTrusted
-        defer { wasHotkeyTrusted = trusted }
-        guard trusted, !wasHotkeyTrusted else { return }
-        hotkey.rearm()
     }
 
     // MARK: Sleep / wake

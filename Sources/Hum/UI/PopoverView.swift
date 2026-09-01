@@ -4,22 +4,16 @@ import SwiftUI
 struct PopoverView: View {
     @ObservedObject var engine: AudioEngineController
 
-    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
-
     /// Whether the global half of ⌥⌘S can actually fire. Polled on appear and
     /// on activation, since the user grants it in System Settings, not here.
     @StateObject private var loginItem = LoginItemController()
-
-    @State private var hotkeyTrusted = GlobalHotkey.isTrusted
 
     /// Single source of truth for the accent, so every tinted control changes
     /// together when the profile does.
     private var accent: Color { engine.profile.accent }
 
     var body: some View {
-        Group {
-            if hasSeenOnboarding { controls } else { onboarding }
-        }
+        controls
         .padding(.horizontal, 14)
         .padding(.top, 12)
         .padding(.bottom, 8)
@@ -39,17 +33,6 @@ struct PopoverView: View {
         .contextMenu {
             Button("Quit Hum") { NSApp.terminate(nil) }
         }
-    }
-
-    private var onboarding: some View {
-        OnboardingView {
-            withAnimation(.easeOut(duration: 0.25)) { hasSeenOnboarding = true }
-        }
-    }
-
-    private func refreshTrust() {
-        engine.rearmHotkeyIfNewlyTrusted()
-        withAnimation(.easeOut(duration: 0.2)) { hotkeyTrusted = GlobalHotkey.isTrusted }
     }
 
     private var controls: some View {
@@ -97,28 +80,19 @@ struct PopoverView: View {
             .padding(.top, 10)
 
             if loginItem.isAvailable { loginItemRow }
-            if !hotkeyTrusted { hotkeyHint }
             quitRow
         }
         .onAppear {
-            refreshTrust()
             loginItem.refresh()
             engine.isPopoverVisible = true
         }
         .onDisappear { engine.isPopoverVisible = false }
         .onReceive(NotificationCenter.default.publisher(
             for: NSApplication.didBecomeActiveNotification)) { _ in
-            refreshTrust()
             loginItem.refresh()
         }
     }
 
-    /// macOS withholds global key events until the process is trusted for
-    /// Accessibility, and does so silently — so say it rather than let the
-    /// shortcut appear broken.
-    /// macOS withholds global key events until the process is trusted for
-    /// Accessibility, and does so silently. A faint grey caption reads as
-    /// something to ignore, so this states the problem and is itself the fix.
     private var loginItemRow: some View {
         VStack(spacing: 4) {
             HStack {
@@ -150,37 +124,6 @@ struct PopoverView: View {
             }
         }
         .padding(.top, 12)
-    }
-
-    private var hotkeyHint: some View {
-        Button {
-            GlobalHotkey.openAccessibilitySettings()
-        } label: {
-            HStack(spacing: 7) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-
-                Text("Enable ⌥⌘S in Accessibility")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.white)
-
-                Spacer(minLength: 0)
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.55))
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(Capsule().fill(Color.orange.opacity(0.14)))
-            .overlay(Capsule().strokeBorder(Color.orange.opacity(0.28), lineWidth: 1))
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .help("Grant Accessibility access so the shortcut works system-wide")
-        .padding(.top, 12)
-        .transition(.opacity.combined(with: .scale(scale: 0.96)))
     }
 
     // MARK: Sections

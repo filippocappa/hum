@@ -10,7 +10,10 @@ A lightweight, native macOS menu-bar noise generator for deep focus.
   - **Pink**: Paul Kellet 3-pole filter approximation.
   - **Deep Brown**: Leaky integrator (1/f²) with Butterworth biquad low-pass tone shaping and ~5 Hz DC blocking.
 - **UI**: Pure SwiftUI, `NSVisualEffectView` translucency, dynamic per-profile accent colors, and a real-time gain-reactive waveform visualizer.
-- **Global Shortcut**: `⌥⌘S` to toggle playback from anywhere.
+- **Global Shortcut**: `⌥⌘S` to toggle playback from anywhere, via
+  [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) —
+  Carbon hotkey registration, so **no Accessibility permission is required**.
+  Rebindable from the first-run splash.
 
 ## Requirements
 
@@ -31,10 +34,6 @@ To build a signed `.app` bundle instead:
 ./bundle.sh
 open Hum.app          # install: mv Hum.app /Applications
 ```
-
-`⌥⌘S` requires Accessibility access (**System Settings → Privacy & Security →
-Accessibility**). macOS withholds global key events silently until granted, so
-the popover shows a prompt while the permission is missing.
 
 ## Signal Path
 
@@ -69,11 +68,13 @@ Sources/Hum/
   HumApp.swift                      MenuBarExtra(.window) entry point, agent policy
   Audio/NoiseDSP.swift               lock-free, allocation-free render-thread DSP
   Audio/AudioEngineController.swift  engine graph, focus timer, sleep/wake
-  Audio/GlobalHotkey.swift           ⌥⌘S global + local event monitors
+  Audio/Shortcuts.swift              ⌥⌘S definition (KeyboardShortcuts)
+  Audio/LoginItem.swift              SMAppService launch-at-login
   UI/PopoverView.swift               280 pt popover
   UI/WaveformView.swift              Béziered ribbon driven by the live gain scalar
   UI/Controls.swift                  profile pills, glyph sliders, focus chips
-  UI/OnboardingView.swift            one-time quick guide
+  UI/SplashView.swift                first-run splash, staged entrance
+  UI/SplashWindow.swift              floating panel host for the splash
   UI/VisualEffect.swift              vibrancy bridge
   UI/Theme.swift                     per-profile accent palette
 Tools/

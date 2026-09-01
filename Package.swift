@@ -4,9 +4,17 @@ import PackageDescription
 let package = Package(
     name: "Hum",
     platforms: [.macOS(.v14)],
+    dependencies: [
+        // Carbon RegisterEventHotKey under the hood, so a global shortcut needs
+        // no Accessibility permission at all.
+        .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "2.0.0")
+    ],
     targets: [
         .executableTarget(
             name: "Hum",
+            dependencies: [
+                .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts")
+            ],
             path: "Sources/Hum",
             exclude: ["Resources/Info.plist"],
             linkerSettings: [
