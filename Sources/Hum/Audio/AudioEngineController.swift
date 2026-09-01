@@ -32,10 +32,20 @@ final class AudioEngineController: ObservableObject {
     // MARK: Published UI state
 
     @Published private(set) var isPlaying = false
-    @Published private(set) var level: Float = 0
-    /// Mirror of the DSP's live gain scalar, polled with the level.
-    @Published private(set) var gain: Float = 0
     @Published private(set) var remaining: TimeInterval?
+
+    /// High-frequency visual signal, kept off this object so it cannot
+    /// invalidate the menu bar label. See `VisualizerState`.
+    let visuals = VisualizerState()
+
+    /// Set by the popover's appear/disappear. Nothing visual is computed or
+    /// published while the window is shut — there is no one to see it.
+    var isPopoverVisible = false {
+        didSet {
+            guard isPopoverVisible != oldValue else { return }
+            isPopoverVisible ? startVisualPolling() : stopVisualPolling()
+        }
+    }
 
     @Published var volume: Double = 0.55 {
         didSet {
@@ -70,6 +80,7 @@ final class AudioEngineController: ObservableObject {
     private let hotkey = GlobalHotkey()
     private var focusDeadline: Date?
     private var tickTimer: Timer?
+    private var visualTimer: Timer?
     private var stopWorkItem: DispatchWorkItem?
     /// Set when the system puts us to sleep mid-playback so wake can restore it.
     private var wasPlayingBeforeSleep = false
@@ -93,7 +104,6 @@ final class AudioEngineController: ObservableObject {
 
         buildGraph(sampleRate: rate)
         observeSleepWake()
-        startLevelPolling()
         hotkey.start { [weak self] in self?.toggle() }
     }
 
@@ -151,6 +161,7 @@ final class AudioEngineController: ObservableObject {
         dsp.rampSeconds = Float(Self.fadeInSeconds)
         dsp.targetVolume = Float(volume)
         isPlaying = true
+        if isPopoverVisible { startVisualPolling() }
         startFocusTimer()
     }
 
@@ -197,7 +208,7 @@ final class AudioEngineController: ObservableObject {
         if left <= 0 {
             remaining = 0
             stop()
-        } else {
+        } else if isPopoverVisible {
             remaining = left
         }
     }
@@ -209,17 +220,36 @@ final class AudioEngineController: ObservableObject {
         remaining = duration.seconds
     }
 
-    // MARK: Level polling for the visualiser
+    // MARK: Visualiser polling
 
-    private func startLevelPolling() {
+    /// Runs only while the popover is open *and* there is still gain to show.
+    /// Once the fade-out has drained with the transport stopped, it tears itself
+    /// down rather than idling at 30 Hz.
+    private func startVisualPolling() {
+        stopVisualPolling()
+        visuals.update(gain: dsp.currentGain)
+
         let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
-                self.level = self.dsp.level
-                self.gain = self.dsp.currentGain
+                guard NSApp.windows.contains(where: { $0.isVisible }) else {
+                    self.isPopoverVisible = false
+                    return
+                }
+                self.visuals.update(gain: self.dsp.currentGain)
+                if !self.isPlaying && self.dsp.isSilent {
+                    self.visuals.reset()
+                    self.stopVisualPolling()
+                }
             }
         }
         RunLoop.main.add(timer, forMode: .common)
+        visualTimer = timer
+    }
+
+    private func stopVisualPolling() {
+        visualTimer?.invalidate()
+        visualTimer = nil
     }
 
     // MARK: Sleep / wake

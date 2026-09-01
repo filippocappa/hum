@@ -53,10 +53,12 @@ struct PopoverView: View {
         VStack(spacing: 0) {
             header
 
-            WaveformView(gain: engine.gain,
-                         profile: engine.profile,
-                         warmth: engine.warmth,
-                         accent: accent)
+            // Its own view, so a 30 Hz gain update redraws the ribbon alone
+            // rather than invalidating the whole popover body.
+            WaveformSection(visuals: engine.visuals,
+                            profile: engine.profile,
+                            warmth: engine.warmth,
+                            accent: accent)
                 .padding(.top, 2)
 
             PlaybackHero(isPlaying: engine.isPlaying, accent: accent, action: engine.toggle)
@@ -94,7 +96,11 @@ struct PopoverView: View {
             if !hotkeyTrusted { hotkeyHint }
             quitRow
         }
-        .onAppear { refreshTrust() }
+        .onAppear {
+            refreshTrust()
+            engine.isPopoverVisible = true
+        }
+        .onDisappear { engine.isPopoverVisible = false }
         .onReceive(NotificationCenter.default.publisher(
             for: NSApplication.didBecomeActiveNotification)) { _ in refreshTrust() }
     }
@@ -165,6 +171,18 @@ struct PopoverView: View {
     private var quitRow: some View {
         QuitButton()
             .padding(.top, 12)
+    }
+}
+
+/// Isolates the waveform's subscription to `VisualizerState`.
+private struct WaveformSection: View {
+    @ObservedObject var visuals: VisualizerState
+    var profile: NoiseProfile
+    var warmth: Double
+    var accent: Color
+
+    var body: some View {
+        WaveformView(gain: visuals.gain, profile: profile, warmth: warmth, accent: accent)
     }
 }
 

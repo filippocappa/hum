@@ -61,8 +61,10 @@ struct WaveformView: View {
 
     var body: some View {
         // With presence at zero the ribbon is flat and static, so stop stepping
-        // the clock entirely rather than redrawing an unchanging frame at 60 Hz.
-        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: presence <= 0)) { timeline in
+        // the clock entirely rather than redrawing an unchanging frame. 30 Hz is
+        // the ceiling while it does run: this is ambient decoration, not content
+        // anyone tracks frame to frame.
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: presence <= 0)) { timeline in
             Canvas { context, size in
                 let t = timeline.date.timeIntervalSinceReferenceDate
                 let midY = size.height / 2
