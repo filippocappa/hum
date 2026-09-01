@@ -1,4 +1,4 @@
-// Renders the Hush app icon with CoreGraphics — no design assets, no dependencies.
+// Renders the Hum app icon with CoreGraphics — no design assets, no dependencies.
 // Emits an .iconset, an .icns, and an Xcode-compatible AppIcon.appiconset.
 //   swift Tools/make-icon.swift
 import AppKit
@@ -6,8 +6,8 @@ import CoreGraphics
 import Foundation
 
 let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-let iconset = root.appendingPathComponent("build/Hush.iconset")
-let appiconset = root.appendingPathComponent("Sources/Hush/Resources/AppIcon.appiconset")
+let iconset = root.appendingPathComponent("build/Hum.iconset")
+let appiconset = root.appendingPathComponent("Sources/Hum/Resources/AppIcon.appiconset")
 try? FileManager.default.createDirectory(at: iconset, withIntermediateDirectories: true)
 try? FileManager.default.createDirectory(at: appiconset, withIntermediateDirectories: true)
 

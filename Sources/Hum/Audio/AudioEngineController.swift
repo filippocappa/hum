@@ -142,7 +142,7 @@ final class AudioEngineController: ObservableObject {
             do {
                 try engine.start()
             } catch {
-                NSLog("Hush: audio engine failed to start — \(error.localizedDescription)")
+                NSLog("Hum: audio engine failed to start — \(error.localizedDescription)")
                 return
             }
         }

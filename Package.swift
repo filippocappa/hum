@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "Hush",
+    name: "Hum",
     platforms: [.macOS(.v14)],
     targets: [
         .executableTarget(
-            name: "Hush",
-            path: "Sources/Hush",
+            name: "Hum",
+            path: "Sources/Hum",
             exclude: ["Resources/Info.plist"],
             linkerSettings: [
                 // Embed Info.plist directly into the __TEXT segment so the
@@ -16,7 +16,7 @@ let package = Package(
                     "-Xlinker", "-sectcreate",
                     "-Xlinker", "__TEXT",
                     "-Xlinker", "__info_plist",
-                    "-Xlinker", "Sources/Hush/Resources/Info.plist"
+                    "-Xlinker", "Sources/Hum/Resources/Info.plist"
                 ])
             ]
         )

@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 @main
-struct HushApp: App {
+struct HumApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var engine = AudioEngineController()
 

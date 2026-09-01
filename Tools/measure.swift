@@ -1,6 +1,6 @@
 // Offline calibration harness. Renders each profile at full volume and reports
 // RMS / peak, so the makeup gains in NoiseDSP are measured rather than guessed.
-//   swiftc Sources/Hush/Audio/NoiseDSP.swift Tools/measure.swift -O -o /tmp/measure && /tmp/measure
+//   swiftc Sources/Hum/Audio/NoiseDSP.swift Tools/measure.swift -O -o /tmp/measure && /tmp/measure
 import Foundation
 
 let sampleRate = 48_000.0

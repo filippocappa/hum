@@ -1,4 +1,4 @@
-# Hush
+# Hum
 
 A lightweight, native macOS menu-bar noise generator for deep focus.
 
@@ -20,7 +20,7 @@ A lightweight, native macOS menu-bar noise generator for deep focus.
 ## Installation & Build
 
 ```bash
-git clone https://github.com/filippocappa/hush.git
+git clone https://github.com/filippocappa/hum.git
 cd hush
 swift run
 ```
@@ -29,7 +29,7 @@ To build a signed `.app` bundle instead:
 
 ```bash
 ./bundle.sh
-open Hush.app          # install: mv Hush.app /Applications
+open Hum.app          # install: mv Hum.app /Applications
 ```
 
 `⌥⌘S` requires Accessibility access (**System Settings → Privacy & Security →
@@ -65,8 +65,8 @@ cool.
 ## Layout
 
 ```
-Sources/Hush/
-  HushApp.swift                      MenuBarExtra(.window) entry point, agent policy
+Sources/Hum/
+  HumApp.swift                      MenuBarExtra(.window) entry point, agent policy
   Audio/NoiseDSP.swift               lock-free, allocation-free render-thread DSP
   Audio/AudioEngineController.swift  engine graph, focus timer, sleep/wake
   Audio/GlobalHotkey.swift           ⌥⌘S global + local event monitors

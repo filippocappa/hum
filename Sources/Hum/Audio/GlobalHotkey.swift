@@ -5,7 +5,7 @@ import AppKit
 /// A *global* monitor only receives key events once the process is trusted for
 /// Accessibility; until then macOS silently withholds them, so `isTrusted`
 /// reports whether the shortcut is actually live. The *local* monitor needs no
-/// permission and covers the case where Hush's own popover has focus.
+/// permission and covers the case where Hum's own popover has focus.
 @MainActor
 final class GlobalHotkey {
     private var globalMonitor: Any?

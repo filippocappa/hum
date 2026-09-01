@@ -13,7 +13,7 @@ struct OnboardingView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Text("Hush")
+            Text("Hum")
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .tracking(1.6)
                 .foregroundStyle(.secondary)

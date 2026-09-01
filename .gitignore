@@ -24,3 +24,6 @@ Icon?
 ._*
 .Spotlight-V100
 .Trashes
+
+# Release artefacts
+*.zip
