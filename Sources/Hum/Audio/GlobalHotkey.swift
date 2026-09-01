@@ -12,8 +12,13 @@ final class GlobalHotkey {
     private var localMonitor: Any?
 
     /// Whether the process is trusted for Accessibility, i.e. whether the
-    /// system-wide half of the shortcut can work at all.
-    static var isTrusted: Bool { AXIsProcessTrusted() }
+    /// system-wide half of the shortcut can work at all. Explicitly passes
+    /// prompt=false: this is polled on every activation, and the prompting
+    /// variant would throw a system dialog each time.
+    static var isTrusted: Bool {
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false]
+        return AXIsProcessTrustedWithOptions(options as CFDictionary)
+    }
 
     /// Opens System Settings at the pane where the user grants the permission.
     static func openAccessibilitySettings() {
@@ -21,7 +26,11 @@ final class GlobalHotkey {
         NSWorkspace.shared.open(url)
     }
 
+    /// Retained so the monitors can be re-armed when trust is granted.
+    private var handler: (@MainActor () -> Void)?
+
     func start(handler: @escaping @MainActor () -> Void) {
+        self.handler = handler
         stop()
 
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
@@ -35,6 +44,15 @@ final class GlobalHotkey {
             Task { @MainActor in handler() }
             return nil
         }
+    }
+
+    /// macOS only begins delivering global key events once the process is
+    /// trusted, and it does not retroactively feed an existing monitor. After
+    /// the user grants access, the monitor must be torn down and reinstalled or
+    /// the shortcut stays dead until relaunch.
+    func rearm() {
+        guard let handler else { return }
+        start(handler: handler)
     }
 
     func stop() {

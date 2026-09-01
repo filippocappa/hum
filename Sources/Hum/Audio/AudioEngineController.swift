@@ -29,9 +29,21 @@ enum FocusDuration: Int, CaseIterable, Identifiable {
 @MainActor
 final class AudioEngineController: ObservableObject {
 
+    /// Single instance, held outside the SwiftUI graph on purpose. If the App
+    /// stores this as `@StateObject`, the *Scene* subscribes to it, and every
+    /// published change — a volume drag at pointer rate — re-evaluates the
+    /// scene body and churns the status item. Only the popover should observe.
+    static let shared = AudioEngineController()
+
+
     // MARK: Published UI state
 
-    @Published private(set) var isPlaying = false
+    @Published private(set) var isPlaying = false {
+        didSet { menuBar.update(isPlaying: isPlaying) }
+    }
+
+    /// Drives the menu bar label alone, so a slider drag cannot reach it.
+    let menuBar = MenuBarState()
     @Published private(set) var remaining: TimeInterval?
 
     /// High-frequency visual signal, kept off this object so it cannot
@@ -78,6 +90,7 @@ final class AudioEngineController: ObservableObject {
     private var sourceNode: AVAudioSourceNode?
 
     private let hotkey = GlobalHotkey()
+    private var wasHotkeyTrusted = GlobalHotkey.isTrusted
     private var focusDeadline: Date?
     private var tickTimer: Timer?
     private var visualTimer: Timer?
@@ -250,6 +263,16 @@ final class AudioEngineController: ObservableObject {
     private func stopVisualPolling() {
         visualTimer?.invalidate()
         visualTimer = nil
+    }
+
+    /// Called when the popover appears or the app activates. Reinstalls the
+    /// global monitor the moment Accessibility trust appears, so the shortcut
+    /// starts working without a relaunch.
+    func rearmHotkeyIfNewlyTrusted() {
+        let trusted = GlobalHotkey.isTrusted
+        defer { wasHotkeyTrusted = trusted }
+        guard trusted, !wasHotkeyTrusted else { return }
+        hotkey.rearm()
     }
 
     // MARK: Sleep / wake

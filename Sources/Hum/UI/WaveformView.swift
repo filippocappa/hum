@@ -108,11 +108,12 @@ struct WaveformView: View {
         .frame(height: Self.height)
     }
 
-    /// Samples `f` at a coarse step and connects the points with cubic Béziers,
-    /// using the Catmull-Rom tangent at each knot. Far smoother than a dense
-    /// polyline, and cheaper — 15 segments instead of 140 line-to calls.
+    /// Samples `f` at 9 knots and connects them with cubic Béziers, using the
+    /// Catmull-Rom tangent at each. The curve is smooth by construction, so
+    /// resolution buys nothing: the Béziers interpolate what extra samples
+    /// would have drawn.
     private func smoothPath(size: CGSize, midY: CGFloat, _ f: (Double) -> Double) -> Path {
-        let segments = 15
+        let segments = 9
         var points: [CGPoint] = []
         points.reserveCapacity(segments + 1)
         for i in 0...segments {

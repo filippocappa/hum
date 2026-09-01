@@ -48,6 +48,7 @@ struct PopoverView: View {
     }
 
     private func refreshTrust() {
+        engine.rearmHotkeyIfNewlyTrusted()
         withAnimation(.easeOut(duration: 0.2)) { hotkeyTrusted = GlobalHotkey.isTrusted }
     }
 

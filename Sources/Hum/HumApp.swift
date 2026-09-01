@@ -4,16 +4,27 @@ import SwiftUI
 @main
 struct HumApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-    @StateObject private var engine = AudioEngineController()
+    /// Deliberately a plain `let`, not `@StateObject`: the scene must not
+    /// observe the controller. See `AudioEngineController.shared`.
+    private let engine = AudioEngineController.shared
 
     var body: some Scene {
         MenuBarExtra {
             PopoverView(engine: engine)
         } label: {
-            // Filled icon while running gives a glanceable state cue in the bar.
-            Image(systemName: engine.isPlaying ? "waveform.circle.fill" : "waveform")
+            MenuBarLabel(state: engine.menuBar)
         }
         .menuBarExtraStyle(.window)
+    }
+}
+
+/// Isolated so the label's only dependency is `isPlaying`.
+private struct MenuBarLabel: View {
+    @ObservedObject var state: MenuBarState
+
+    var body: some View {
+        // Filled icon while running gives a glanceable state cue in the bar.
+        Image(systemName: state.isPlaying ? "waveform.circle.fill" : "waveform")
     }
 }
 
