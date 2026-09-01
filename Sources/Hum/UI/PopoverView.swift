@@ -8,6 +8,8 @@ struct PopoverView: View {
 
     /// Whether the global half of ⌥⌘S can actually fire. Polled on appear and
     /// on activation, since the user grants it in System Settings, not here.
+    @StateObject private var loginItem = LoginItemController()
+
     @State private var hotkeyTrusted = GlobalHotkey.isTrusted
 
     /// Single source of truth for the accent, so every tinted control changes
@@ -93,16 +95,21 @@ struct PopoverView: View {
             }
             .padding(.top, 10)
 
+            if loginItem.isAvailable { loginItemRow }
             if !hotkeyTrusted { hotkeyHint }
             quitRow
         }
         .onAppear {
             refreshTrust()
+            loginItem.refresh()
             engine.isPopoverVisible = true
         }
         .onDisappear { engine.isPopoverVisible = false }
         .onReceive(NotificationCenter.default.publisher(
-            for: NSApplication.didBecomeActiveNotification)) { _ in refreshTrust() }
+            for: NSApplication.didBecomeActiveNotification)) { _ in
+            refreshTrust()
+            loginItem.refresh()
+        }
     }
 
     /// macOS withholds global key events until the process is trusted for
@@ -111,6 +118,39 @@ struct PopoverView: View {
     /// macOS withholds global key events until the process is trusted for
     /// Accessibility, and does so silently. A faint grey caption reads as
     /// something to ignore, so this states the problem and is itself the fix.
+    private var loginItemRow: some View {
+        VStack(spacing: 4) {
+            HStack {
+                Text("Launch at Login")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Toggle("", isOn: Binding(
+                    get: { loginItem.isEnabled },
+                    set: { loginItem.setEnabled($0) }
+                ))
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .labelsHidden()
+                .accessibilityLabel("Launch at Login")
+            }
+
+            // macOS will not let an app re-enable a login item the user turned
+            // off in System Settings, so point them there instead of failing
+            // silently with the switch snapping back.
+            if loginItem.requiresApproval {
+                Button("Approve in Login Items") { loginItem.openLoginItemsSettings() }
+                    .buttonStyle(.plain)
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(.top, 12)
+    }
+
     private var hotkeyHint: some View {
         Button {
             GlobalHotkey.openAccessibilitySettings()
