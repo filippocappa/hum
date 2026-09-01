@@ -10,7 +10,10 @@ final class SplashWindowController {
 
     private var window: NSWindow?
 
-    private static let size = NSSize(width: 520, height: 380)
+    /// 520 wide as specified; taller than the original 380 because the
+    /// launch-at-login row became a fourth full-width card — at 380 the stack
+    /// clipped.
+    static let size = NSSize(width: 520, height: 500)
     private static let seenKey = "hasCompletedOnboarding"
 
     var hasCompletedOnboarding: Bool {
