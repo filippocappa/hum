@@ -1,0 +1,276 @@
+import AVFoundation
+import AppKit
+import Combine
+import SwiftUI
+
+/// Focus-session lengths offered in the bottom chip row.
+enum FocusDuration: Int, CaseIterable, Identifiable {
+    case continuous = 0
+    case short = 25
+    case medium = 45
+    case long = 90
+
+    var id: Int { rawValue }
+
+    var label: String {
+        switch self {
+        case .continuous: return "∞"
+        default: return "\(rawValue)m"
+        }
+    }
+
+    var seconds: TimeInterval? {
+        self == .continuous ? nil : TimeInterval(rawValue * 60)
+    }
+}
+
+/// Owns the `AVAudioEngine` graph, the parameter bridge to `NoiseDSP`, the
+/// focus timer, and sleep/wake safety.
+@MainActor
+final class AudioEngineController: ObservableObject {
+
+    // MARK: Published UI state
+
+    @Published private(set) var isPlaying = false
+    @Published private(set) var level: Float = 0
+    /// Mirror of the DSP's live gain scalar, polled with the level.
+    @Published private(set) var gain: Float = 0
+    @Published private(set) var remaining: TimeInterval?
+
+    @Published var volume: Double = 0.55 {
+        didSet {
+            // A drag should track the pointer, not crescendo behind it.
+            if isPlaying { dsp.rampSeconds = Self.sliderRamp }
+            dsp.targetVolume = Float(volume)
+        }
+    }
+
+    /// 0…1 warmth position, mapped exponentially onto 180 Hz…18 kHz.
+    @Published var warmth: Double = 0.5 {
+        didSet {
+            dsp.cutoffHz = Self.cutoff(for: warmth)
+            dsp.warmthNorm = Float(warmth)
+        }
+    }
+
+    @Published var profile: NoiseProfile = .white {
+        didSet { dsp.profileIndex = profile.dspIndex }
+    }
+
+    @Published var duration: FocusDuration = .continuous {
+        didSet { if isPlaying { startFocusTimer() } else { remaining = duration.seconds } }
+    }
+
+    // MARK: Engine
+
+    private let engine = AVAudioEngine()
+    private let dsp: NoiseDSP
+    private var sourceNode: AVAudioSourceNode?
+
+    private let hotkey = GlobalHotkey()
+    private var focusDeadline: Date?
+    private var tickTimer: Timer?
+    private var stopWorkItem: DispatchWorkItem?
+    /// Set when the system puts us to sleep mid-playback so wake can restore it.
+    private var wasPlayingBeforeSleep = false
+
+    /// Crescendo on play, decrescendo on pause, and a short glide for slider drags.
+    /// These are pole durations, not audible ones: the squared volume taper makes
+    /// the heard fade shorter than the parameter, so both are tuned against
+    /// measured output (≈800 ms in, ≈500 ms out). See `Tools/measure.swift`.
+    private static let fadeInSeconds: TimeInterval = 0.92
+    private static let fadeOutSeconds: TimeInterval = 1.0
+    private static let sliderRamp: Float = 0.03
+
+    init() {
+        let sampleRate = engine.outputNode.outputFormat(forBus: 0).sampleRate
+        let rate = sampleRate > 0 ? sampleRate : 48_000
+        dsp = NoiseDSP(sampleRate: rate)
+        dsp.targetVolume = 0
+        dsp.profileIndex = profile.dspIndex
+        dsp.cutoffHz = Self.cutoff(for: warmth)
+        dsp.warmthNorm = Float(warmth)
+
+        buildGraph(sampleRate: rate)
+        observeSleepWake()
+        startLevelPolling()
+        hotkey.start { [weak self] in self?.toggle() }
+    }
+
+    // MARK: Graph
+
+    private func buildGraph(sampleRate: Double) {
+        // Mono source, upmixed to the hardware layout by the mixer.
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1) else { return }
+
+        let dsp = self.dsp
+        let node = AVAudioSourceNode(format: format) { _, _, frameCount, audioBufferList in
+            let buffers = UnsafeMutableAudioBufferListPointer(audioBufferList)
+            let frames = Int(frameCount)
+
+            guard let first = buffers.first?.mData?.assumingMemoryBound(to: Float.self) else {
+                return noErr
+            }
+            dsp.render(into: first, frames: frames)
+
+            // Duplicate into any additional channels the device asked for.
+            for extra in buffers.dropFirst() {
+                if let dest = extra.mData {
+                    memcpy(dest, first, frames * MemoryLayout<Float>.size)
+                }
+            }
+            return noErr
+        }
+
+        engine.attach(node)
+        engine.connect(node, to: engine.mainMixerNode, format: format)
+        engine.mainMixerNode.outputVolume = 1.0
+        sourceNode = node
+    }
+
+    // MARK: Transport
+
+    func toggle() { isPlaying ? stop() : start() }
+
+    func start() {
+        stopWorkItem?.cancel()
+        stopWorkItem = nil
+
+        if !engine.isRunning {
+            dsp.reset()
+            engine.prepare()
+            do {
+                try engine.start()
+            } catch {
+                NSLog("Hush: audio engine failed to start — \(error.localizedDescription)")
+                return
+            }
+        }
+
+        // Crescendo in from silence.
+        dsp.rampSeconds = Float(Self.fadeInSeconds)
+        dsp.targetVolume = Float(volume)
+        isPlaying = true
+        startFocusTimer()
+    }
+
+    /// Ramps the gain to zero, then tears the engine down once the tail has drained.
+    func stop() {
+        guard isPlaying || engine.isRunning else { return }
+
+        dsp.rampSeconds = Float(Self.fadeOutSeconds)
+        dsp.targetVolume = 0
+        isPlaying = false
+        cancelFocusTimer()
+
+        // Tear the engine down only once the decrescendo has fully drained;
+        // the margin covers the tail beyond three time constants.
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, !self.isPlaying else { return }
+            self.engine.pause()
+        }
+        stopWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.fadeOutSeconds + 0.25, execute: work)
+    }
+
+    // MARK: Focus timer
+
+    private func startFocusTimer() {
+        cancelFocusTimer()
+        guard let seconds = duration.seconds else {
+            remaining = nil
+            return
+        }
+        focusDeadline = Date().addingTimeInterval(seconds)
+        remaining = seconds
+
+        let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.tick() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        tickTimer = timer
+    }
+
+    private func tick() {
+        guard let deadline = focusDeadline else { return }
+        let left = deadline.timeIntervalSinceNow
+        if left <= 0 {
+            remaining = 0
+            stop()
+        } else {
+            remaining = left
+        }
+    }
+
+    private func cancelFocusTimer() {
+        tickTimer?.invalidate()
+        tickTimer = nil
+        focusDeadline = nil
+        remaining = duration.seconds
+    }
+
+    // MARK: Level polling for the visualiser
+
+    private func startLevelPolling() {
+        let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                self.level = self.dsp.level
+                self.gain = self.dsp.currentGain
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    // MARK: Sleep / wake
+
+    private func observeSleepWake() {
+        let center = NSWorkspace.shared.notificationCenter
+
+        center.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.handleSleep() }
+        }
+        center.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.handleWake() }
+        }
+    }
+
+    private func handleSleep() {
+        wasPlayingBeforeSleep = isPlaying
+        guard isPlaying else { return }
+        // Hard stop: the render thread must not be left holding the device
+        // across a sleep transition, and the timer is paused with it.
+        dsp.rampSeconds = Self.sliderRamp
+        dsp.targetVolume = 0
+        isPlaying = false
+        cancelFocusTimer()
+        engine.pause()
+    }
+
+    private func handleWake() {
+        guard wasPlayingBeforeSleep else { return }
+        wasPlayingBeforeSleep = false
+        // The output device may have changed identity across sleep; a reset
+        // forces the graph to re-resolve it before we start again.
+        engine.reset()
+        start()
+    }
+
+    // MARK: Helpers
+
+    /// Exponential map so the slider's low end has usable resolution.
+    private static func cutoff(for warmth: Double) -> Float {
+        // Floor raised from 180 Hz: the master filter stacks on top of each
+        // profile's own shaping, and below ~300 Hz that combination reads as
+        // broken rather than warm.
+        let low = 300.0, high = 18_000.0
+        // warmth 1.0 = fully open / bright, 0.0 = heavily filtered / warm.
+        return Float(low * pow(high / low, warmth))
+    }
+
+    var remainingText: String? {
+        guard let remaining, duration.seconds != nil else { return nil }
+        let total = Int(remaining.rounded(.up))
+        return String(format: "%d:%02d", total / 60, total % 60)
+    }
+}
