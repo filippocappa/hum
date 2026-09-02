@@ -51,6 +51,11 @@ final class WaveHostView: NSView {
         rebuildIfNeeded()
     }
 
+    /// Gives SwiftUI a height to work with; width comes from the call site.
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: NSView.noIntrinsicMetric, height: 56)
+    }
+
     func apply(amplitude: Double, presence: Double, accent: NSColor,
                density: Double, speed: Double) {
         self.density = density
@@ -80,7 +85,9 @@ final class WaveHostView: NSView {
 
     private func setAmplitude(_ value: Double) {
         self.amplitude = value
-        let scale = max(value, 0.001)
+        // Floor well above zero: a near-zero scale is a degenerate transform,
+        // and `presence` already hides the ribbon when there is nothing to show.
+        let scale = max(value, 0.02)
         for l in [back, front] {
             l.transform = CATransform3DMakeScale(1, scale, 1)
         }
@@ -93,10 +100,20 @@ final class WaveHostView: NSView {
         builtSize = size
         builtDensity = density
 
+        // Never assign `frame` here. The frame setter compensates for the
+        // layer's transform, so with a vertical scale already applied it solves
+        // for a bounds height of (wanted / scale) — which with a small scale
+        // blows the layer up by orders of magnitude and pushes the path out of
+        // view. Set bounds and position directly and leave transform alone.
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
         for l in [back, front] {
-            l.frame = bounds
-            l.transform = CATransform3DMakeScale(1, max(amplitude, 0.001), 1)
+            l.bounds = CGRect(origin: .zero, size: size)
+            l.position = CGPoint(x: size.width / 2, y: size.height / 2)
         }
+        CATransaction.commit()
+
+        setAmplitude(amplitude)
         installAnimations()
     }
 
