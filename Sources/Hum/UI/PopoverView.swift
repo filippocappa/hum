@@ -96,8 +96,10 @@ struct PopoverView: View {
 
                 FocusCard(focus: engine.focus,
                           duration: $engine.duration,
+                          isPlaying: engine.isPlaying,
                           accent: accent,
-                          onCancel: engine.cancelSession)
+                          onCancel: engine.cancelSession,
+                          onToggle: engine.toggle)
             }
             .padding(.top, 12)
             .padding(.bottom, 4)

@@ -160,51 +160,134 @@ struct FocusChips: View {
 }
 
 /// The focus card, in one of two states: the duration picker while idle, or a
-/// running session with a stop control and its countdown.
+/// running session with its own transport and countdown.
+///
+/// The two states share a `matchedGeometryEffect`, so the ∞ pill physically
+/// travels into the stop pill rather than one row fading out while another
+/// fades in.
 struct FocusCard: View {
     /// Held without observing — a tick must not re-render this card, only the
     /// label that shows it. See `CountdownLabel`.
     let focus: FocusTimerState
     @Binding var duration: FocusDuration
+    var isPlaying: Bool
     var accent: Color
     var onCancel: () -> Void
+    var onToggle: () -> Void
+
+    @Namespace private var morph
+
+    private static let morphSpring = Animation.spring(response: 0.42, dampingFraction: 0.76)
 
     var body: some View {
         CardSurface {
             VStack(spacing: 7) {
                 SectionLabel(text: duration == .continuous ? "Focus" : "Session")
 
-                if duration == .continuous {
-                    FocusChips(selection: $duration, accent: accent)
-                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
-                } else {
-                    activeSession
-                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                ZStack {
+                    if duration == .continuous {
+                        pills
+                    } else {
+                        session
+                    }
                 }
+                .frame(height: 22)
             }
             .padding(.horizontal, 11)
             .padding(.vertical, 10)
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: duration)
+        .animation(Self.morphSpring, value: duration)
     }
 
-    private var activeSession: some View {
-        HStack {
-            Button(action: onCancel) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 15))
-                    .foregroundStyle(.secondary)
-                    .contentShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .help("End this session")
-            .accessibilityLabel("End session")
+    // MARK: Idle
 
-            Spacer()
+    private var pills: some View {
+        HStack(spacing: 4) {
+            ForEach(FocusDuration.allCases) { option in
+                let selected = option == duration
+
+                Button {
+                    withAnimation(Self.morphSpring) { duration = option }
+                } label: {
+                    Text(option.label)
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(selected ? .white : .secondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background {
+                            if option == .continuous {
+                                // The anchor that becomes the stop pill.
+                                pillBackground(filled: selected)
+                                    .matchedGeometryEffect(id: "leading", in: morph)
+                            } else {
+                                pillBackground(filled: selected)
+                            }
+                        }
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(selected ? [.isSelected] : [])
+                .transition(.scale(scale: 0.7).combined(with: .opacity))
+            }
+        }
+    }
+
+    // MARK: Active
+
+    private var session: some View {
+        HStack(spacing: 4) {
+            ActionPill(symbol: "xmark", accent: accent, filled: false, action: onCancel)
+                .matchedGeometryEffect(id: "leading", in: morph)
+                .accessibilityLabel("End session")
+
+            ActionPill(symbol: isPlaying ? "pause.fill" : "play.fill",
+                       accent: accent, filled: isPlaying, action: onToggle)
+                .accessibilityLabel(isPlaying ? "Pause" : "Play")
+                .transition(.scale(scale: 0.7).combined(with: .opacity))
+
+            Spacer(minLength: 6)
 
             CountdownLabel(focus: focus, accent: accent)
+                .transition(.scale(scale: 0.85).combined(with: .opacity))
         }
-        .frame(height: 20)
+    }
+
+    private func pillBackground(filled: Bool) -> some View {
+        Capsule()
+            .fill(filled ? accent.opacity(0.30) : Color.clear)
+            .overlay(Capsule().strokeBorder(filled ? accent.opacity(0.5) : .clear, lineWidth: 1))
+    }
+}
+
+/// Pill-shaped control matching the duration pills, so the morph lands on a
+/// shape the eye already knows.
+private struct ActionPill: View {
+    var symbol: String
+    var accent: Color
+    var filled: Bool
+    var action: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(filled ? .white : .secondary)
+                .frame(width: 38, height: 22)
+                .background(
+                    Capsule().fill(filled ? accent.opacity(0.30)
+                                          : Color.white.opacity(hovering ? 0.10 : 0.06))
+                )
+                .overlay(
+                    Capsule().strokeBorder(filled ? accent.opacity(0.5) : Theme.cardStroke,
+                                           lineWidth: 1)
+                )
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovering)
     }
 }
 
@@ -218,6 +301,9 @@ private struct CountdownLabel: View {
         Text(focus.text)
             .font(.system(.body, design: .monospaced).weight(.semibold))
             .foregroundStyle(accent)
+            // Static ambient glow in the active accent; nothing animates, so it
+            // costs nothing per frame.
+            .shadow(color: accent.opacity(0.45), radius: 5)
             .contentTransition(.numericText(countsDown: true))
             .animation(.easeOut(duration: 0.2), value: focus.secondsRemaining)
             .accessibilityLabel("Time remaining")

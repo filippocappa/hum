@@ -84,6 +84,9 @@ final class AudioEngineController: ObservableObject {
 
     @Published var duration: FocusDuration = .continuous {
         didSet {
+            // Choosing a duration starts a fresh session; it never resumes a
+            // half-finished one.
+            pausedRemaining = nil
             if isPlaying { startFocusTimer() }
             else { focus.update(seconds: duration.seconds.map { Int($0) }) }
         }
@@ -97,6 +100,9 @@ final class AudioEngineController: ObservableObject {
 
     private var didBootstrap = false
     private var focusDeadline: Date?
+    /// Time left when a session was paused, so resuming continues from there
+    /// rather than restarting the full duration.
+    private var pausedRemaining: TimeInterval?
     private var tickTimer: Timer?
     private var visualTimer: Timer?
     private var stopWorkItem: DispatchWorkItem?
@@ -221,6 +227,10 @@ final class AudioEngineController: ObservableObject {
         dsp.rampSeconds = Float(fade)
         dsp.targetVolume = 0
         isPlaying = false
+        // Freeze the countdown where it stands so play resumes, not restarts.
+        if let focusDeadline {
+            pausedRemaining = max(0, focusDeadline.timeIntervalSinceNow)
+        }
         cancelFocusTimer()
 
         // Tear the engine down only once the decrescendo has fully drained;
@@ -241,8 +251,12 @@ final class AudioEngineController: ObservableObject {
     // MARK: Focus timer
 
     private func startFocusTimer() {
+        // Resume from a paused session if there is one, otherwise start fresh.
+        let resumeFrom = pausedRemaining
         cancelFocusTimer()
-        guard let seconds = duration.seconds else {
+        pausedRemaining = nil
+
+        guard let seconds = resumeFrom ?? duration.seconds else {
             focus.update(seconds: nil)
             return
         }
@@ -271,12 +285,19 @@ final class AudioEngineController: ObservableObject {
         tickTimer?.invalidate()
         tickTimer = nil
         focusDeadline = nil
-        focus.update(seconds: duration.seconds.map { Int($0) })
+        // Hold a frozen session at its remaining time; otherwise show the full
+        // duration the picker is set to.
+        if let pausedRemaining {
+            focus.update(seconds: Int(pausedRemaining.rounded(.up)))
+        } else {
+            focus.update(seconds: duration.seconds.map { Int($0) })
+        }
     }
 
     /// The session ran out: fade the audio gently, then hand the card back to
     /// its idle picker once the tail has actually gone.
     private func expireSession() {
+        pausedRemaining = nil
         stop(fadeSeconds: Self.expiryFadeSeconds)
         // stop() resets the display to the full duration via cancelFocusTimer;
         // hold it at zero instead, so the countdown does not jump back up while
@@ -289,7 +310,9 @@ final class AudioEngineController: ObservableObject {
     }
 
     /// Cancels a running session from the UI, restoring the duration picker.
+    /// Audio keeps playing; only the session ends.
     func cancelSession() {
+        pausedRemaining = nil
         duration = .continuous
     }
 
@@ -346,6 +369,9 @@ final class AudioEngineController: ObservableObject {
         dsp.rampSeconds = Self.sliderRamp
         dsp.targetVolume = 0
         isPlaying = false
+        if let focusDeadline {
+            pausedRemaining = max(0, focusDeadline.timeIntervalSinceNow)
+        }
         cancelFocusTimer()
         engine.pause()
         dsp.silence()
