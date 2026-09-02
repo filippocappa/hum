@@ -31,7 +31,7 @@ struct PopoverView: View {
                 RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous)
                     .stroke(Color.white.opacity(0.08), lineWidth: 1)
             )
-            .animation(.easeInOut(duration: 0.45), value: engine.profile)
+            .animation(Theme.accentTransition, value: engine.profile)
             .contextMenu {
                 Button("Quit Hum") { NSApp.terminate(nil) }
             }
@@ -90,9 +90,8 @@ struct PopoverView: View {
                 }
             }
             .padding(.top, 12)
+            .padding(.bottom, 4)
 
-            if loginItem.isAvailable { loginItemRow }
-            quitRow
         }
         .onAppear {
             loginItem.refresh()
@@ -107,8 +106,9 @@ struct PopoverView: View {
 
     // MARK: Sections
 
-    /// Anchors the panel: a breathing mark, the wordmark, and a line that says
-    /// what is currently playing — replacing a bare title over a hard divider.
+    /// Anchors the panel: a breathing mark, the wordmark, and a line naming
+    /// what is playing. The gear sits over the top-right corner so it does not
+    /// shift the centred stack.
     private var header: some View {
         VStack(spacing: 5) {
             PulsingGlyph(accent: accent, size: 16, glowRadius: 38, active: engine.isPlaying)
@@ -123,51 +123,10 @@ struct PopoverView: View {
                 // Fixed height keeps the layout still between profiles.
                 .frame(height: 14)
         }
-    }
-
-    private var loginItemRow: some View {
-        VStack(spacing: 4) {
-            CardSurface {
-                HStack {
-                    Text("Launch at Login")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    Spacer()
-
-                    Toggle("", isOn: Binding(
-                        get: { loginItem.isEnabled },
-                        set: { loginItem.setEnabled($0) }
-                    ))
-                    .toggleStyle(.switch)
-                    .controlSize(.mini)
-                    .labelsHidden()
-                    .tint(accent)
-                    .accessibilityLabel("Launch at Login")
-                }
-                .padding(.horizontal, 11)
-                .padding(.vertical, 8)
-            }
-
-            // macOS will not let an app re-enable a login item the user turned
-            // off in System Settings, so point them there rather than let the
-            // switch snap back with no explanation.
-            if loginItem.requiresApproval {
-                Button("Approve in Login Items") { loginItem.openLoginItemsSettings() }
-                    .buttonStyle(.plain)
-                    .font(.caption2)
-                    .foregroundStyle(accent)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+        .frame(maxWidth: .infinity)
+        .overlay(alignment: .topTrailing) {
+            SettingsMenu(loginItem: loginItem, accent: accent)
         }
-        .padding(.top, 10)
-    }
-
-    /// Quit lives here rather than in the header, so the top of the popover
-    /// stays free of chrome. ⌘Q works whenever the popover has focus.
-    private var quitRow: some View {
-        QuitButton()
-            .padding(.top, 10)
     }
 }
 
@@ -189,31 +148,6 @@ private struct GlassPressStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.93 : 1)
             .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
-    }
-}
-
-/// Foot control. Recedes until pointed at, then reads unmistakably as the
-/// destructive action.
-private struct QuitButton: View {
-    @State private var isHovering = false
-
-    var body: some View {
-        Button { NSApp.terminate(nil) } label: {
-            Text("Quit Hum")
-                .font(.caption)
-                .foregroundStyle(isHovering ? Color.red : Color.secondary.opacity(0.7))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 3)
-                .background(
-                    Capsule().fill(Color.red.opacity(isHovering ? 0.12 : 0))
-                )
-                .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .keyboardShortcut("q", modifiers: .command)
-        .onHover { isHovering = $0 }
-        .animation(.easeInOut(duration: 0.15), value: isHovering)
-        .frame(maxWidth: .infinity)
     }
 }
 
@@ -247,5 +181,64 @@ private struct PlaybackHero: View {
         .animation(.spring(response: 0.28, dampingFraction: 0.65), value: isHovering)
         .animation(.easeOut(duration: 0.15), value: isPlaying)
         .accessibilityLabel(isPlaying ? "Pause" : "Play")
+    }
+}
+
+/// Secondary controls, tucked behind a gear so the panel stays a clean stack of
+/// cards. `Menu` gives native keyboard handling and dismissal for free.
+private struct SettingsMenu: View {
+    @ObservedObject var loginItem: LoginItemController
+    var accent: Color
+
+    @State private var hovering = false
+
+    private var version: String {
+        let dict = Bundle.main.infoDictionary
+        let short = dict?["CFBundleShortVersionString"] as? String ?? "—"
+        return "Version \(short)"
+    }
+
+    var body: some View {
+        Menu {
+            if loginItem.isAvailable {
+                Toggle("Launch at Login", isOn: Binding(
+                    get: { loginItem.isEnabled },
+                    set: { loginItem.setEnabled($0) }
+                ))
+
+                if loginItem.requiresApproval {
+                    Button("Approve in Login Items…") { loginItem.openLoginItemsSettings() }
+                }
+            }
+
+            Button("Welcome Screen…") { SplashWindowController.shared.showAgain() }
+
+            Divider()
+
+            Section("About Hum") {
+                Text(version)
+                Button("GitHub Repository") {
+                    if let url = URL(string: "https://github.com/filippocappa/hum") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+            }
+
+            Divider()
+
+            Button("Quit Hum") { NSApp.terminate(nil) }
+                .keyboardShortcut("q", modifiers: .command)
+        } label: {
+            Image(systemName: "gearshape")
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(hovering ? 0.95 : 0.6))
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.15), value: hovering)
+        .onAppear { loginItem.refresh() }
+        .help("Settings")
     }
 }

@@ -25,6 +25,13 @@ final class SplashWindowController {
         show()
     }
 
+    /// Re-opens the splash on demand from the settings menu, clearing the
+    /// first-run flag so the window behaves exactly as it does on a fresh install.
+    func showAgain() {
+        UserDefaults.standard.set(false, forKey: Self.seenKey)
+        show()
+    }
+
     func show() {
         if let window {
             window.makeKeyAndOrderFront(nil)

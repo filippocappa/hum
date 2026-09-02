@@ -10,7 +10,9 @@ struct ProfilePicker: View {
             ForEach(NoiseProfile.allCases) { profile in
                 let selected = profile == selection
 
-                Button { selection = profile } label: {
+                Button {
+                    withAnimation(Theme.accentTransition) { selection = profile }
+                } label: {
                     Text(profile.title)
                         .font(.caption)
                         .fontWeight(selected ? .semibold : .regular)
@@ -33,7 +35,7 @@ struct ProfilePicker: View {
         .padding(3)
         .background(Capsule().fill(Color.black.opacity(0.18)))
         .overlay(Capsule().strokeBorder(Theme.cardStroke, lineWidth: 1))
-        .animation(.spring(response: 0.32, dampingFraction: 0.78), value: selection)
+        .animation(Theme.accentTransition, value: selection)
     }
 }
 
@@ -133,7 +135,9 @@ struct FocusChips: View {
             ForEach(FocusDuration.allCases) { option in
                 let selected = option == selection
 
-                Button { selection = option } label: {
+                Button {
+                    withAnimation(Theme.accentTransition) { selection = option }
+                } label: {
                     Text(option.label)
                         .font(.caption)
                         .monospacedDigit()
@@ -151,7 +155,7 @@ struct FocusChips: View {
                 .accessibilityAddTraits(selected ? [.isSelected] : [])
             }
         }
-        .animation(.easeOut(duration: 0.18), value: selection)
+        .animation(Theme.accentTransition, value: selection)
     }
 }
 
@@ -214,6 +218,10 @@ struct PulsingGlyph: View {
                 .font(.system(size: size, weight: .medium))
                 .foregroundStyle(accent)
         }
+        // The glyph sits inside a TimelineView that re-evaluates every frame,
+        // so without an explicit trigger its tint snaps while the pills and
+        // slider fills cross-fade. This keeps all of them on one curve.
+        .animation(Theme.accentTransition, value: accent)
     }
 
     /// Rasterised once; the animation then only moves layer properties.

@@ -73,9 +73,8 @@ struct WaveformView: View {
                 let breath = 0.88 + 0.12 * sin(t * 0.55)
                 let peak = Self.peakHeight * amplitude * breath
 
-                // The resting line is always present underneath, fading in as the
-                // accent ribbon fades out — a crossfade, not a swap.
-                drawRestingLine(in: &context, size: size, midY: midY, strength: 1 - presence)
+                // Nothing is drawn at rest. A faint horizontal rule here read as
+                // a divider under the header rather than as a dormant waveform.
                 guard presence > 0 else { return }
 
                 let motion = profile.motion
@@ -137,26 +136,4 @@ struct WaveformView: View {
         return path
     }
 
-    /// Resting state: a soft glowing rule, drawn as a wide faint pass beneath a
-    /// crisp thin one — cheaper and sharper than a blur filter. `strength`
-    /// crossfades it against the accent ribbon.
-    private func drawRestingLine(in context: inout GraphicsContext, size: CGSize,
-                                 midY: CGFloat, strength: Double) {
-        guard strength > 0 else { return }
-        var line = Path()
-        line.move(to: CGPoint(x: 0, y: midY))
-        line.addLine(to: CGPoint(x: size.width, y: midY))
-
-        let fade = GraphicsContext.Shading.linearGradient(
-            Gradient(colors: [.clear, .primary, .primary, .clear]),
-            startPoint: .zero,
-            endPoint: CGPoint(x: size.width, y: 0)
-        )
-
-        context.opacity = 0.10 * strength
-        context.stroke(line, with: fade, lineWidth: 4)
-        context.opacity = 0.45 * strength
-        context.stroke(line, with: fade, lineWidth: 1)
-        context.opacity = 1
-    }
 }

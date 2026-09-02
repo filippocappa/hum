@@ -16,6 +16,10 @@ enum Theme {
     /// Raising this trades legibility for translucency — the wallpaper reads
     /// through less the higher it goes.
     static let scrim = 0.30
+
+    /// Every accent-driven change uses this exact curve, so the glyph, pills,
+    /// slider fills and chips cross-fade as one rather than at three speeds.
+    static let accentTransition = Animation.easeInOut(duration: 0.25)
     static let track = Color.primary.opacity(0.10)
 
     static let popoverWidth: CGFloat = 280
