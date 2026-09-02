@@ -4,10 +4,11 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.7.x   | :white_check_mark: |
+| 1.9.x   | :white_check_mark: |
+| < 1.9   | :x:                |
 
-Security fixes are published as a new release. Older versions do not receive
-backported patches.
+Only the current minor release line is supported. Security fixes are published
+as a new release rather than backported, so please update before reporting.
 
 ## Reporting a Vulnerability
 
