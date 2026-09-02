@@ -194,7 +194,8 @@ struct CardSurface<Content: View>: View {
     }
 }
 
-/// The pulsing waveform mark that anchors both windows.
+/// The pulsing waveform mark that anchors both windows. The glow is a Core
+/// Animation layer; see `PulseLayer.swift` for why it is not a SwiftUI animation.
 struct PulsingGlyph: View {
     var accent: Color
     var size: CGFloat
@@ -204,35 +205,14 @@ struct PulsingGlyph: View {
 
     var body: some View {
         ZStack {
-            TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !active)) { timeline in
-                let phase = active
-                    ? 0.5 + 0.5 * sin(timeline.date.timeIntervalSinceReferenceDate * 1.15)
-                    : 0.35
-
-                glow
-                    .opacity(0.15 + 0.17 * phase)
-                    .scaleEffect(0.94 + 0.14 * phase)
-            }
+            PulseGlowView(accent: accent, active: active)
+                .frame(width: glowRadius, height: glowRadius)
+                .allowsHitTesting(false)
 
             Image(systemName: "waveform")
                 .font(.system(size: size, weight: .medium))
                 .foregroundStyle(accent)
         }
-        // The glyph sits inside a TimelineView that re-evaluates every frame,
-        // so without an explicit trigger its tint snaps while the pills and
-        // slider fills cross-fade. This keeps all of them on one curve.
         .animation(Theme.accentTransition, value: accent)
-    }
-
-    /// Rasterised once; the animation then only moves layer properties.
-    private var glow: some View {
-        RadialGradient(
-            colors: [accent, accent.opacity(0)],
-            center: .center,
-            startRadius: 0,
-            endRadius: glowRadius / 2
-        )
-        .frame(width: glowRadius, height: glowRadius)
-        .drawingGroup()
     }
 }
