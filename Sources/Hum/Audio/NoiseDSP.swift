@@ -26,12 +26,13 @@ enum NoiseProfile: String, CaseIterable, Identifiable {
         }
     }
 
-    /// What the profile is *for*, not what it is mathematically.
+    /// What the profile sounds like, in plain language — no mathematics, no
+    /// promises about what it will do for your concentration.
     var blurb: String {
         switch self {
-        case .brown: return "Subterranean rumble for deep work"
-        case .pink:  return "Gentle rainfall for sustained reading"
-        case .white: return "Crisp static to mask voices"
+        case .white: return "Constant static to block voices and sharp sounds."
+        case .pink:  return "Softer static with balanced lows and highs."
+        case .brown: return "Low rumble to cut out background noise."
         }
     }
 

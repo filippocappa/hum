@@ -47,12 +47,26 @@ struct PopoverView: View {
                             profile: engine.profile,
                             warmth: engine.warmth,
                             accent: accent)
-                .padding(.top, 2)
 
             PlaybackHero(isPlaying: engine.isPlaying, accent: accent, action: engine.toggle)
+                .padding(.top, -6)
 
             VStack(spacing: 10) {
-                ProfilePicker(selection: $engine.profile, accent: accent)
+                VStack(spacing: 7) {
+                    ProfilePicker(selection: $engine.profile, accent: accent)
+
+                    Text(engine.profile.blurb)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        // Two lines' worth, held fixed: these strings differ in
+                        // length and wrap at 280 pt, so a tight box would clip
+                        // some and a loose one would jog the layout on switch.
+                        .frame(height: 30)
+                        .animation(.easeInOut(duration: 0.2), value: engine.profile)
+                }
 
                 CardSurface {
                     VStack(spacing: 11) {
@@ -116,16 +130,11 @@ struct PopoverView: View {
 
             Text("Hum")
                 .font(.headline.weight(.semibold))
-
-            Text(engine.profile.blurb)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                // Fixed height keeps the layout still between profiles.
-                .frame(height: 14)
         }
         .frame(maxWidth: .infinity)
         .overlay(alignment: .topTrailing) {
             SettingsMenu(loginItem: loginItem, accent: accent)
+                .padding(.top, 2)
         }
     }
 }

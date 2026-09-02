@@ -71,7 +71,7 @@ struct SplashView: View {
                 .font(.system(size: 30, weight: .semibold, design: .rounded))
                 .tracking(0.5)
 
-            Text("Pure hum, generated live.")
+            Text("Lightweight background noise, built natively with Swift.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -84,16 +84,16 @@ struct SplashView: View {
     private var cards: some View {
         VStack(spacing: 7) {
             card(index: 0, symbol: "waveform.path.ecg",
-                 title: "Mathematical noise profiles",
-                 detail: "White, Pink and Deep Brown, synthesised sample by sample.")
+                 title: "Three noise types",
+                 detail: "White, Pink, and Brown noise synthesized in real time without loops.")
 
             card(index: 1, symbol: "dial.medium",
-                 title: "Adaptive warmth filter",
-                 detail: "A Butterworth biquad sweeping seismic rumble to open velvet.")
+                 title: "Tone filter",
+                 detail: "Adjust warmth to roll off harsh frequencies and soften the sound.")
 
             card(index: 2, symbol: "command",
-                 title: "Global hotkey",
-                 detail: "Toggle from any app, no permissions needed.") {
+                 title: "Global shortcut",
+                 detail: "Press ⌥⌘S anywhere to start or pause without leaving your app.") {
                 KeyboardShortcuts.Recorder(for: .togglePlayPause)
                     .controlSize(.small)
                     .fixedSize()
@@ -101,8 +101,8 @@ struct SplashView: View {
 
             if loginItem.isAvailable {
                 card(index: 3, symbol: "power",
-                     title: "Launch at Login",
-                     detail: "Start automatically in your menu bar when your Mac turns on.") {
+                     title: "Open at login",
+                     detail: "Keep Hum ready in your menu bar when your Mac starts up.") {
                     Toggle("", isOn: Binding(
                         get: { loginItem.isEnabled },
                         set: { loginItem.setEnabled($0) }
