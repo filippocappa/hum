@@ -12,7 +12,7 @@ for (index, name) in ["brown", "pink", "white"].enumerated() {
     dsp.profileIndex = Int32(index)
     dsp.targetVolume = 1.0
     dsp.cutoffHz = 20_000      // master filter wide open, to isolate the profile
-    dsp.warmthNorm = 0.5    // the app's default
+    dsp.warmthNorm = 1.0    // the app's default
 
     let buffer = UnsafeMutablePointer<Float>.allocate(capacity: frames)
     defer { buffer.deallocate() }

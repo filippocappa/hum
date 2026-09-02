@@ -46,6 +46,9 @@ the noise itself.
 Plus a **warmth** filter sweeping 190 Hz – 950 Hz, a focus timer (∞ / 25 / 45 /
 90 minutes), and a waveform that reacts to the engine's live gain.
 
+Hum starts at volume 100 %, warmth 100 %, White, running continuously. Those are
+session defaults — they are not persisted between launches.
+
 ## Performance
 
 Measured with `top`, release build:
@@ -107,10 +110,11 @@ sample delta, so there is nothing to click.
 
 ## Calibration
 
-`Tools/measure.swift` renders each profile offline and reports its level:
+`Tools/measure.swift` renders each profile offline and reports its level at the
+shipped defaults — volume and warmth both at 100 %:
 
 ```
-brown  rms 0.1245 (-18.1 dBFS)   peak 0.529 (-5.5 dBFS)
+brown  rms 0.1345 (-17.4 dBFS)   peak 0.572 (-4.9 dBFS)
 pink   rms 0.1054 (-19.5 dBFS)   peak 0.435 (-7.2 dBFS)
 white  rms 0.0889 (-21.0 dBFS)   peak 0.165 (-15.6 dBFS)
 ```

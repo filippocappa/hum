@@ -62,7 +62,7 @@ final class AudioEngineController: ObservableObject {
         }
     }
 
-    @Published var volume: Double = 0.55 {
+    @Published var volume: Double = 1.0 {
         didSet {
             // A drag should track the pointer, not crescendo behind it.
             if isPlaying { dsp.rampSeconds = Self.sliderRamp }
@@ -71,7 +71,7 @@ final class AudioEngineController: ObservableObject {
     }
 
     /// 0…1 warmth position, mapped exponentially onto 180 Hz…18 kHz.
-    @Published var warmth: Double = 0.5 {
+    @Published var warmth: Double = 1.0 {
         didSet {
             dsp.cutoffHz = Self.cutoff(for: warmth)
             dsp.warmthNorm = Float(warmth)
