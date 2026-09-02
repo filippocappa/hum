@@ -235,7 +235,7 @@ struct FocusCard: View {
     // MARK: Active
 
     private var session: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 5) {
             ActionPill(symbol: "xmark", accent: accent, filled: false, action: onCancel)
                 .matchedGeometryEffect(id: "leading", in: morph)
                 .accessibilityLabel("End session")
@@ -249,6 +249,7 @@ struct FocusCard: View {
 
             CountdownLabel(focus: focus, accent: accent)
                 .transition(.scale(scale: 0.85).combined(with: .opacity))
+                .padding(.trailing, 2)
         }
     }
 
