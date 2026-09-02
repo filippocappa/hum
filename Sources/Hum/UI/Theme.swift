@@ -38,9 +38,12 @@ extension NoiseProfile {
 
     var accent: Color {
         switch self {
-        // #FF9F0A — the system amber, warm enough to read as "deep".
-        case .brown: return Color(red: 1.00, green: 0.62, blue: 0.04)
-        case .pink:  return Color(red: 0.98, green: 0.48, blue: 0.52)
+        // #CC8F57 — an actual tan-brown. True brown is too dark to read on a
+        // dark panel, so this is lifted in value while keeping the hue earthy
+        // rather than orange.
+        case .brown: return Color(red: 0.80, green: 0.56, blue: 0.34)
+        // #FF80B8 — magenta-leaning, so it reads pink rather than coral.
+        case .pink:  return Color(red: 1.00, green: 0.50, blue: 0.72)
         case .white: return Color(red: 0.86, green: 0.90, blue: 0.96)
         }
     }

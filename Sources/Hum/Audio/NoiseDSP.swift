@@ -20,7 +20,7 @@ enum NoiseProfile: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .brown: return "Deep Brown"
+        case .brown: return "Brown"
         case .pink:  return "Pink"
         case .white: return "White"
         }

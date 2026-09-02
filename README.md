@@ -12,12 +12,12 @@
 <tr>
 <td><img src="assets/popover-white.png" width="230" alt="White noise"></td>
 <td><img src="assets/popover-pink.png" width="230" alt="Pink noise"></td>
-<td><img src="assets/popover-brown.png" width="230" alt="Deep Brown noise"></td>
+<td><img src="assets/popover-brown.png" width="230" alt="Brown noise"></td>
 </tr>
 <tr>
 <td align="center"><b>White</b></td>
 <td align="center"><b>Pink</b></td>
-<td align="center"><b>Deep Brown</b></td>
+<td align="center"><b>Brown</b></td>
 </tr>
 </table>
 
@@ -25,6 +25,8 @@
 
 *Start a focus session and the duration pills morph into a live countdown,
 with stop and play/pause alongside.*
+
+<sub>Popover shots above predate the v1.9.0 palette and the Brown rename.</sub>
 
 </div>
 
@@ -48,7 +50,7 @@ the noise itself.
 |---|---|---|
 | **White** | Constant static to block voices and sharp sounds | Uniform distribution, flat spectrum |
 | **Pink** | Softer static with balanced lows and highs | Paul Kellet 3-pole 1/f approximation |
-| **Deep Brown** | Low rumble to cut out background noise | Leaky integrator → Butterworth biquad, ~5 Hz DC blocking |
+| **Brown** | Low rumble to cut out background noise | Leaky integrator → Butterworth biquad, ~5 Hz DC blocking |
 
 Plus a **warmth** filter sweeping 190 Hz – 950 Hz, a focus timer (∞ / 25 / 45 /
 90 minutes), and a waveform that reacts to the engine's live gain.

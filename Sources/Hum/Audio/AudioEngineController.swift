@@ -174,7 +174,7 @@ final class AudioEngineController: ObservableObject {
     }
 
     /// Factory settings, applied on first launch and whenever a stored value is
-    /// missing. Warmth sits at 50 % rather than wide open so Deep Brown keeps
+    /// missing. Warmth sits at 50 % rather than wide open so Brown keeps
     /// its subterranean character out of the box.
     private static let factoryVolume = 1.0
     private static let factoryWarmth = 0.5
