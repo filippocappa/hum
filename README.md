@@ -2,15 +2,17 @@
 
 # Hum
 
-**Lightweight background noise for macOS, built natively with Swift.**
+**Native Swift • Procedural synthesis • Zero loops**
 
-<img src="assets/splash.png" width="560" alt="Hum onboarding window">
+[**↓ Download for macOS**](https://github.com/filippocappa/hum/releases/latest) · macOS 14+ · ~1.6 MB
+
+<img src="assets/splash.png" width="540" alt="Hum onboarding window">
 
 <table>
 <tr>
-<td><img src="assets/popover-white.png" width="240" alt="White noise"></td>
-<td><img src="assets/popover-pink.png" width="240" alt="Pink noise"></td>
-<td><img src="assets/popover-brown.png" width="240" alt="Deep Brown noise"></td>
+<td><img src="assets/popover-white.png" width="230" alt="White noise"></td>
+<td><img src="assets/popover-pink.png" width="230" alt="Pink noise"></td>
+<td><img src="assets/popover-brown.png" width="230" alt="Deep Brown noise"></td>
 </tr>
 <tr>
 <td align="center"><b>White</b></td>
@@ -18,6 +20,11 @@
 <td align="center"><b>Deep Brown</b></td>
 </tr>
 </table>
+
+<img src="assets/session-card.png" width="420" alt="Active focus session">
+
+*Start a focus session and the duration pills morph into a live countdown,
+with stop and play/pause alongside.*
 
 </div>
 
@@ -46,8 +53,9 @@ the noise itself.
 Plus a **warmth** filter sweeping 190 Hz – 950 Hz, a focus timer (∞ / 25 / 45 /
 90 minutes), and a waveform that reacts to the engine's live gain.
 
-Hum starts at volume 100 %, warmth 100 %, White, running continuously. Those are
-session defaults — they are not persisted between launches.
+Volume, warmth and the selected profile persist across launches. A fresh install
+starts at volume 100 %, warmth 50 % and White — warmth sits mid-range so Deep
+Brown keeps its subterranean character out of the box.
 
 ## Performance
 
@@ -111,10 +119,10 @@ sample delta, so there is nothing to click.
 ## Calibration
 
 `Tools/measure.swift` renders each profile offline and reports its level at the
-shipped defaults — volume and warmth both at 100 %:
+shipped defaults — volume 100 %, warmth 50 %:
 
 ```
-brown  rms 0.1345 (-17.4 dBFS)   peak 0.572 (-4.9 dBFS)
+brown  rms 0.1245 (-18.1 dBFS)   peak 0.529 (-5.5 dBFS)
 pink   rms 0.1054 (-19.5 dBFS)   peak 0.435 (-7.2 dBFS)
 white  rms 0.0889 (-21.0 dBFS)   peak 0.165 (-15.6 dBFS)
 ```

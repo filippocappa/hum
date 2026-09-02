@@ -67,6 +67,7 @@ final class AudioEngineController: ObservableObject {
             // A drag should track the pointer, not crescendo behind it.
             if isPlaying { dsp.rampSeconds = Self.sliderRamp }
             dsp.targetVolume = Float(volume)
+            defaults.set(volume, forKey: Key.volume)
         }
     }
 
@@ -75,11 +76,15 @@ final class AudioEngineController: ObservableObject {
         didSet {
             dsp.cutoffHz = Self.cutoff(for: warmth)
             dsp.warmthNorm = Float(warmth)
+            defaults.set(warmth, forKey: Key.warmth)
         }
     }
 
     @Published var profile: NoiseProfile = .white {
-        didSet { dsp.profileIndex = profile.dspIndex }
+        didSet {
+            dsp.profileIndex = profile.dspIndex
+            defaults.set(profile.rawValue, forKey: Key.profile)
+        }
     }
 
     @Published var duration: FocusDuration = .continuous {
@@ -126,6 +131,10 @@ final class AudioEngineController: ObservableObject {
     /// leaves the status item without its click handler attached.
     private init() {
         dsp = NoiseDSP(sampleRate: Self.fallbackSampleRate)
+        // Assigning through the published properties runs their didSet, which
+        // pushes each value into the DSP and writes it straight back — harmless,
+        // and it keeps one code path for loading and for user edits.
+        loadPreferences()
         applyParameters()
     }
 
@@ -153,6 +162,39 @@ final class AudioEngineController: ObservableObject {
     }
 
     private static let fallbackSampleRate: Double = 48_000
+
+    // MARK: Persistence
+
+    private let defaults = UserDefaults.standard
+
+    private enum Key {
+        static let volume = "hum.volume"
+        static let warmth = "hum.warmth"
+        static let profile = "hum.profile"
+    }
+
+    /// Factory settings, applied on first launch and whenever a stored value is
+    /// missing. Warmth sits at 50 % rather than wide open so Deep Brown keeps
+    /// its subterranean character out of the box.
+    private static let factoryVolume = 1.0
+    private static let factoryWarmth = 0.5
+
+    /// Reads stored preferences over the factory defaults. Registering rather
+    /// than writing means a fresh install has values without having persisted
+    /// anything yet.
+    private func loadPreferences() {
+        defaults.register(defaults: [
+            Key.volume: Self.factoryVolume,
+            Key.warmth: Self.factoryWarmth,
+            Key.profile: NoiseProfile.white.rawValue
+        ])
+
+        // Clamped: a hand-edited or corrupted plist should not put the engine
+        // into a state the sliders cannot represent.
+        volume = min(max(defaults.double(forKey: Key.volume), 0), 1)
+        warmth = min(max(defaults.double(forKey: Key.warmth), 0), 1)
+        profile = NoiseProfile(rawValue: defaults.string(forKey: Key.profile) ?? "") ?? .white
+    }
 
     private func applyParameters() {
         dsp.targetVolume = 0
