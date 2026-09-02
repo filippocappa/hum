@@ -30,6 +30,12 @@ extension NoiseProfile {
     /// Each profile carries its own accent, chosen to match how the noise reads:
     /// caramel for the deep rumble, rose for the mid-forward hiss, ice for the
     /// bright one. Kept in the UI layer so the DSP stays free of SwiftUI.
+    /// Legible foreground on top of a near-opaque `accent` fill. White reads
+    /// fine on amber and coral, but vanishes on silver.
+    var onAccent: Color {
+        self == .white ? Color(red: 0.10, green: 0.10, blue: 0.12) : .white
+    }
+
     var accent: Color {
         switch self {
         // #FF9F0A — the system amber, warm enough to read as "deep".

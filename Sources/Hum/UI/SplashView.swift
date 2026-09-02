@@ -15,8 +15,10 @@ struct SplashView: View {
     @State private var actionIn = false
     @State private var hoveredCard: Int?
 
-    /// The splash has no live audio to react to, so it borrows brown's caramel.
-    private let accent = NoiseProfile.brown.accent
+    /// White is the cold-launch default, so the splash wears its silver — the
+    /// user lands on exactly the accent they were just shown.
+    private let profile = NoiseProfile.white
+    private var accent: Color { profile.accent }
 
     private static let spring = Animation.spring(response: 0.6, dampingFraction: 0.75)
     private static let cardSpring = Animation.spring(response: 0.55, dampingFraction: 0.8)
@@ -151,9 +153,9 @@ struct SplashView: View {
     // MARK: Footer
 
     private var footer: some View {
-        StartButton(accent: accent, action: onDismiss)
-        .opacity(actionIn ? 1 : 0)
-        .offset(y: actionIn ? 0 : 10)
+        StartButton(accent: accent, foreground: profile.onAccent, action: onDismiss)
+            .opacity(actionIn ? 1 : 0)
+            .offset(y: actionIn ? 0 : 10)
     }
 
     // MARK: Entrance
@@ -172,6 +174,7 @@ struct SplashView: View {
 /// Primary action with a specular sheen that brightens under the pointer.
 private struct StartButton: View {
     var accent: Color
+    var foreground: Color
     var action: () -> Void
 
     @State private var hovering = false
@@ -180,7 +183,7 @@ private struct StartButton: View {
         Button(action: action) {
             Text("Start Focusing")
                 .font(.body.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(foreground)
                 .frame(maxWidth: .infinity)
                 .frame(height: 44)
                 .background(
