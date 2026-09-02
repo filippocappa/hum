@@ -18,7 +18,9 @@ struct WaveformView: View {
     /// Below this the ribbon is treated as fully at rest: amplitude, opacity and
     /// motion all clamp to exactly zero, so nothing jitters on indefinitely at a
     /// sliver of gain the ear cannot hear.
-    private static let silenceFloor: Float = 0.001
+    /// One quantisation step of the published gain is 1/256 ≈ 0.0039, so any
+    /// value under that is residue rather than signal.
+    private static let silenceFloor: Float = 0.005
 
     private var clampedGain: Double {
         let g = min(max(gain, 0), 1)

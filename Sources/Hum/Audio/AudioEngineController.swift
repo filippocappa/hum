@@ -219,6 +219,11 @@ final class AudioEngineController: ObservableObject {
         let work = DispatchWorkItem { [weak self] in
             guard let self, !self.isPlaying else { return }
             self.engine.pause()
+            // Pausing strands the gain wherever the ramp had reached, so zero it
+            // explicitly and stand the visualiser down with it.
+            self.dsp.silence()
+            self.visuals.reset()
+            self.stopVisualPolling()
         }
         stopWorkItem = work
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.fadeOutSeconds + 0.25, execute: work)
@@ -277,7 +282,7 @@ final class AudioEngineController: ObservableObject {
                     return
                 }
                 self.visuals.update(gain: self.dsp.currentGain)
-                if !self.isPlaying && self.dsp.isSilent {
+                if !self.isPlaying && (self.dsp.isSilent || !self.engine.isRunning) {
                     self.visuals.reset()
                     self.stopVisualPolling()
                 }
@@ -315,6 +320,9 @@ final class AudioEngineController: ObservableObject {
         isPlaying = false
         cancelFocusTimer()
         engine.pause()
+        dsp.silence()
+        visuals.reset()
+        stopVisualPolling()
     }
 
     private func handleWake() {

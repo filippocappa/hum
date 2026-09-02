@@ -238,6 +238,18 @@ final class NoiseDSP: @unchecked Sendable {
         // ~6 ms each way through a profile change.
         let switchStep = 1.0 / (0.006 * sampleRate)
 
+        // Idle: nothing audible and no ramp in flight. Fill silence and skip the
+        // DSP rather than synthesising buffers nobody will hear. This also
+        // snaps the gain to a hard zero, so the published value cannot sit at a
+        // sub-audible residue that keeps the visualiser awake.
+        if volumeTarget == 0 && currentVolume < 0.0001 {
+            currentVolume = 0
+            rmsAccumulator = 0
+            level = 0
+            buffer.update(repeating: 0, count: frames)
+            return
+        }
+
         var rms: Float = 0
 
         for i in 0..<frames {
@@ -289,6 +301,16 @@ final class NoiseDSP: @unchecked Sendable {
 
     /// True once the gain ramp has fully drained — used to defer engine teardown.
     var isSilent: Bool { currentVolume < 0.0005 }
+
+    /// Hard-zeroes the gain. Required when the engine is paused mid-ramp: the
+    /// render block is the only thing that advances `currentVolume`, so once
+    /// CoreAudio stops pulling, whatever value it held is frozen in place — and
+    /// anything reading `currentGain` would believe audio is still fading.
+    func silence() {
+        currentVolume = 0
+        rmsAccumulator = 0
+        level = 0
+    }
 
     /// Clears filter memory so a resumed engine starts from a defined state.
     func reset() {
