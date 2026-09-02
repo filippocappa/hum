@@ -27,3 +27,9 @@ Icon?
 
 # Release artefacts
 *.zip
+
+# Source screenshots (full-desktop; cropped versions live in assets/)
+/splash.png
+/white.png
+/pink.png
+/brown.png
