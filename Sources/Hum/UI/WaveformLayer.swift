@@ -26,6 +26,9 @@ final class WaveHostView: NSView {
     private static let knots = 9
     private static let lineWidthFront: CGFloat = 1.8
     private static let lineWidthBack: CGFloat = 1.5
+    /// Thinner than the wave: at rest it should read as a quiet rule, not as a
+    /// flattened ribbon.
+    private static let lineWidthBaseline: CGFloat = 1.0
 
     /// Collapsed scale. Not zero: the layer transform scales the stroke too, so
     /// the wave thins as it flattens, handing the eye over to the baseline.
@@ -55,7 +58,7 @@ final class WaveHostView: NSView {
         }
         front.lineWidth = Self.lineWidthFront
         back.lineWidth = Self.lineWidthBack
-        baseline.lineWidth = Self.lineWidthFront
+        baseline.lineWidth = Self.lineWidthBaseline
         baseline.opacity = Self.restBaselineOpacity
         front.opacity = 0
         back.opacity = 0
