@@ -26,8 +26,6 @@
 *Start a focus session and the duration pills morph into a live countdown,
 with stop and play/pause alongside.*
 
-<sub>Popover shots above predate the v1.9.0 palette and the Brown rename.</sub>
-
 </div>
 
 ## What it is
