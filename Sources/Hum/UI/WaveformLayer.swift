@@ -6,15 +6,17 @@ import SwiftUI
 /// A `Canvas` inside a `TimelineView` costs roughly 2 ms of app CPU per frame
 /// here — measured at ~7 % for this view alone at 30 fps, independent of layer
 /// count, knot count, canvas size or backdrop. The work is SwiftUI's per-frame
-/// machinery, not the drawing.
+/// machinery, not the drawing. So the animation is handed to the render server:
+/// a `CAKeyframeAnimation` morphs between paths covering exactly one loop of the
+/// travelling wave, and the app does nothing per frame.
 ///
-/// So the animation is handed to the render server: a `CAKeyframeAnimation`
-/// morphs between pre-built paths covering exactly one loop of the travelling
-/// wave. The app builds those paths once and then does nothing per frame —
-/// amplitude, colour and speed are layer properties Core Animation interpolates
-/// on its own thread.
+/// Play and pause never swap shapes. A baseline layer holds a flat line at the
+/// exact centre at all times; the wave collapses onto it and grows back out of
+/// it, so there is no frame in which nothing is drawn.
 final class WaveHostView: NSView {
 
+    /// Always present, never animated: the line the wave settles onto.
+    private let baseline = CAShapeLayer()
     private let back = CAShapeLayer()
     private let front = CAShapeLayer()
 
@@ -22,6 +24,13 @@ final class WaveHostView: NSView {
     /// sets path fidelity rather than frame rate.
     private static let steps = 48
     private static let knots = 9
+    private static let lineWidthFront: CGFloat = 1.8
+    private static let lineWidthBack: CGFloat = 1.5
+
+    /// Collapsed scale. Not zero: the layer transform scales the stroke too, so
+    /// the wave thins as it flattens, handing the eye over to the baseline.
+    private static let restScale: CGFloat = 0.02
+    private static let restBaselineOpacity: Float = 0.30
 
     private var density: Double = 2.1
     private var loopDuration: Double = 4.0
@@ -31,24 +40,25 @@ final class WaveHostView: NSView {
 
     private var frontPaths: [CGPath] = []
     private var backPaths: [CGPath] = []
-    /// The resting shape: a straight line with the same segment structure as the
-    /// wave paths, so Core Animation can interpolate between them.
-    private var flatPath: CGPath?
     private var atRest = true
+    private var frozen = false
+    private var freezeWork: DispatchWorkItem?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
-        layer?.addSublayer(back)
-        layer?.addSublayer(front)
-        for l in [back, front] {
+        for l in [baseline, back, front] {
             l.fillColor = nil
             l.lineCap = .round
             l.lineJoin = .round
-            l.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+            layer?.addSublayer(l)
         }
-        front.lineWidth = 1.8
-        back.lineWidth = 1.5
+        front.lineWidth = Self.lineWidthFront
+        back.lineWidth = Self.lineWidthBack
+        baseline.lineWidth = Self.lineWidthFront
+        baseline.opacity = Self.restBaselineOpacity
+        front.opacity = 0
+        back.opacity = 0
     }
 
     required init?(coder: NSCoder) { nil }
@@ -63,6 +73,8 @@ final class WaveHostView: NSView {
         NSSize(width: NSView.noIntrinsicMetric, height: 56)
     }
 
+    // MARK: State
+
     func apply(amplitude: Double, presence: Double, accent: NSColor,
                density: Double, speed: Double) {
         self.density = density
@@ -74,79 +86,92 @@ final class WaveHostView: NSView {
         CATransaction.setAnimationDuration(0.25)
         front.strokeColor = accent.withAlphaComponent(0.85).cgColor
         back.strokeColor = NSColor.white.withAlphaComponent(0.28).cgColor
+        baseline.strokeColor = accent.withAlphaComponent(0.9).cgColor
         CATransaction.commit()
 
-        if presence > 0 {
-            resume(amplitude: amplitude, presence: presence)
-        } else {
-            settleToFlatline()
-        }
+        presence > 0
+            ? expand(amplitude: amplitude, presence: presence)
+            : collapse()
     }
 
-    /// Playing: wave shape, amplitude-scaled, looping.
-    private func resume(amplitude: Double, presence: Double) {
+    /// Grows the same line back into a wave.
+    private func expand(amplitude: Double, presence: Double) {
+        freezeWork?.cancel()
+        freezeWork = nil
+        if frozen { unfreeze() }
+        if front.animation(forKey: "path") == nil { installAnimations() }
+
         let wasResting = atRest
         atRest = false
+        self.amplitude = amplitude
 
         CATransaction.begin()
-        // Coming out of rest, unfurl a little more slowly than a routine level
-        // change so the line visibly grows back into a wave.
-        CATransaction.setAnimationDuration(wasResting ? 0.35 : 0.25)
-        if wasResting, let first = frontPaths.first, let firstBack = backPaths.first {
-            // Morph the flat line back into the wave, then hand over to the
-            // looping animation; adding the loop straight away would snap.
-            CATransaction.setCompletionBlock { [weak self] in
-                guard let self, !self.atRest else { return }
-                self.installAnimations()
-            }
-            front.path = first
-            back.path = firstBack
-        }
-        setAmplitude(amplitude)
+        CATransaction.setAnimationDuration(wasResting ? 0.45 : 0.25)
+        CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .easeInEaseOut))
+        setScale(max(CGFloat(amplitude), 0.06))
         front.opacity = Float(presence)
         back.opacity = Float(presence * 0.9)
+        // The baseline recedes as the wave takes over, but never before it.
+        baseline.opacity = max(0, Self.restBaselineOpacity - 0.30 * Float(presence))
         CATransaction.commit()
-
-        if !wasResting, front.animation(forKey: "path") == nil {
-            installAnimations()
-        }
     }
 
-    /// Paused or stopped: the ribbon settles into one calm horizontal line at
-    /// reduced opacity rather than vanishing.
-    private func settleToFlatline() {
+    /// Collapses the wave onto the baseline. Nothing is removed or swapped, so
+    /// there is no frame without a line on screen.
+    private func collapse() {
         guard !atRest else { return }
         atRest = true
 
-        back.removeAnimation(forKey: "path")
-        front.removeAnimation(forKey: "path")
-
         CATransaction.begin()
-        CATransaction.setAnimationDuration(0.55)
+        CATransaction.setAnimationDuration(0.45)
         CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .easeInEaseOut))
-        // Scale returns to 1: the stroke itself is scaled by the transform, so
-        // collapsing amplitude to zero would thin the line away to nothing.
-        for l in [back, front] {
-            l.transform = CATransform3DIdentity
-        }
-        if let flatPath {
-            front.path = flatPath
-            back.path = flatPath
-        }
-        front.opacity = 0.22
-        back.opacity = 0.08
+        setScale(Self.restScale)
+        front.opacity = 0
+        back.opacity = 0
+        baseline.opacity = Self.restBaselineOpacity
         CATransaction.commit()
+
+        // Once it has settled, stop the render server interpolating a wave
+        // nobody can see. Freezing preserves phase, so resuming does not jump.
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.atRest else { return }
+            self.freeze()
+        }
+        freezeWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
     }
 
-    private func setAmplitude(_ value: Double) {
-        self.amplitude = value
-        // Floor well above zero: a near-zero scale is a degenerate transform,
-        // and `presence` already hides the ribbon when there is nothing to show.
-        let scale = max(value, 0.06)
+    private func setScale(_ scale: CGFloat) {
         for l in [back, front] {
             l.transform = CATransform3DMakeScale(1, scale, 1)
         }
     }
+
+    // MARK: Freezing
+
+    private func freeze() {
+        guard !frozen else { return }
+        frozen = true
+        for l in [back, front] {
+            let paused = l.convertTime(CACurrentMediaTime(), from: nil)
+            l.speed = 0
+            l.timeOffset = paused
+        }
+    }
+
+    private func unfreeze() {
+        guard frozen else { return }
+        frozen = false
+        for l in [back, front] {
+            let paused = l.timeOffset
+            l.speed = 1
+            l.timeOffset = 0
+            l.beginTime = 0
+            l.beginTime = l.convertTime(CACurrentMediaTime(), from: nil) - paused
+        }
+    }
+
+    // MARK: Geometry
 
     private func rebuildIfNeeded() {
         let size = bounds.size
@@ -162,30 +187,32 @@ final class WaveHostView: NSView {
         // view. Set bounds and position directly and leave transform alone.
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        for l in [back, front] {
+        for l in [baseline, back, front] {
             l.bounds = CGRect(origin: .zero, size: size)
             l.position = CGPoint(x: size.width / 2, y: size.height / 2)
         }
+        baseline.path = flatLine()
         CATransaction.commit()
 
         frontPaths = paths(w1: 1.00, w2: 2.30, dir1: 1.0, dir2: -2.0,
                            heightScale: 1.0, offset: 0)
         backPaths = paths(w1: 1.45, w2: 3.10, dir1: -1.0, dir2: 2.0,
                           heightScale: 0.74, offset: 1.7)
-        flatPath = flatLine()
 
-        if atRest {
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            front.path = flatPath
-            back.path = flatPath
-            front.opacity = 0.22
-            back.opacity = 0.08
-            CATransaction.commit()
-        } else {
-            setAmplitude(amplitude)
-            installAnimations()
-        }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        setScale(atRest ? Self.restScale : max(CGFloat(amplitude), 0.06))
+        CATransaction.commit()
+
+        installAnimations()
+    }
+
+    private func flatLine() -> CGPath {
+        let midY = builtSize.height / 2
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: 0, y: midY))
+        path.addLine(to: CGPoint(x: builtSize.width, y: midY))
+        return path
     }
 
     /// One full loop of phase, so the keyframes join seamlessly end to end.
@@ -230,24 +257,6 @@ final class WaveHostView: NSView {
         }
     }
 
-    /// Same knot count and segment structure as the wave paths, so the two
-    /// interpolate cleanly instead of snapping.
-    private func flatLine() -> CGPath {
-        let midY = builtSize.height / 2
-        let path = CGMutablePath()
-        let points = (0...Self.knots).map {
-            CGPoint(x: builtSize.width * Double($0) / Double(Self.knots), y: midY)
-        }
-        path.move(to: points[0])
-        for i in 0..<points.count - 1 {
-            let p1 = points[i], p2 = points[i + 1]
-            path.addCurve(to: p2,
-                          control1: CGPoint(x: p1.x + (p2.x - p1.x) / 3, y: midY),
-                          control2: CGPoint(x: p2.x - (p2.x - p1.x) / 3, y: midY))
-        }
-        return path
-    }
-
     private func installAnimations() {
         guard builtSize.width > 1, !frontPaths.isEmpty else { return }
 
@@ -265,8 +274,8 @@ final class WaveHostView: NSView {
         back.removeAnimation(forKey: "path")
 
         // Keep the model layer in step with what the animation shows. Without
-        // this the model still holds the flat resting path, so the moment the
-        // animation is removed the ribbon snaps to a shape it was never showing.
+        // this the model holds a stale path, so the ribbon snaps to a shape it
+        // was never showing the moment the animation is removed.
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         front.path = frontPaths[0]
