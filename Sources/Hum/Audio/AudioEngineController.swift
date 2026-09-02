@@ -45,11 +45,13 @@ final class AudioEngineController: ObservableObject {
 
     /// Drives the menu bar label alone, so a slider drag cannot reach it.
     let menuBar = MenuBarState()
-    @Published private(set) var remaining: TimeInterval?
 
     /// High-frequency visual signal, kept off this object so it cannot
     /// invalidate the menu bar label. See `VisualizerState`.
     let visuals = VisualizerState()
+
+    /// Countdown, likewise on its own observable.
+    let focus = FocusTimerState()
 
     /// Set by the popover's appear/disappear. Nothing visual is computed or
     /// published while the window is shut — there is no one to see it.
@@ -81,7 +83,10 @@ final class AudioEngineController: ObservableObject {
     }
 
     @Published var duration: FocusDuration = .continuous {
-        didSet { if isPlaying { startFocusTimer() } else { remaining = duration.seconds } }
+        didSet {
+            if isPlaying { startFocusTimer() }
+            else { focus.update(seconds: duration.seconds.map { Int($0) }) }
+        }
     }
 
     // MARK: Engine
@@ -97,6 +102,9 @@ final class AudioEngineController: ObservableObject {
     private var stopWorkItem: DispatchWorkItem?
     /// Set when the system puts us to sleep mid-playback so wake can restore it.
     private var wasPlayingBeforeSleep = false
+
+    /// A timed session ends on a longer, gentler fade than a manual pause.
+    private static let expiryFadeSeconds: TimeInterval = 3.0
 
     /// Crescendo on play, decrescendo on pause, and a short glide for slider drags.
     /// These are pole durations, not audible ones: the squared volume taper makes
@@ -206,10 +214,11 @@ final class AudioEngineController: ObservableObject {
     }
 
     /// Ramps the gain to zero, then tears the engine down once the tail has drained.
-    func stop() {
+    func stop(fadeSeconds: TimeInterval? = nil) {
         guard isPlaying || engine.isRunning else { return }
 
-        dsp.rampSeconds = Float(Self.fadeOutSeconds)
+        let fade = fadeSeconds ?? Self.fadeOutSeconds
+        dsp.rampSeconds = Float(fade)
         dsp.targetVolume = 0
         isPlaying = false
         cancelFocusTimer()
@@ -226,7 +235,7 @@ final class AudioEngineController: ObservableObject {
             self.stopVisualPolling()
         }
         stopWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.fadeOutSeconds + 0.25, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + fade + 0.25, execute: work)
     }
 
     // MARK: Focus timer
@@ -234,11 +243,11 @@ final class AudioEngineController: ObservableObject {
     private func startFocusTimer() {
         cancelFocusTimer()
         guard let seconds = duration.seconds else {
-            remaining = nil
+            focus.update(seconds: nil)
             return
         }
         focusDeadline = Date().addingTimeInterval(seconds)
-        remaining = seconds
+        focus.update(seconds: Int(seconds.rounded(.up)))
 
         let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
@@ -251,10 +260,10 @@ final class AudioEngineController: ObservableObject {
         guard let deadline = focusDeadline else { return }
         let left = deadline.timeIntervalSinceNow
         if left <= 0 {
-            remaining = 0
-            stop()
-        } else if isPopoverVisible {
-            remaining = left
+            focus.update(seconds: 0)
+            expireSession()
+        } else {
+            focus.update(seconds: Int(left.rounded(.up)))
         }
     }
 
@@ -262,7 +271,26 @@ final class AudioEngineController: ObservableObject {
         tickTimer?.invalidate()
         tickTimer = nil
         focusDeadline = nil
-        remaining = duration.seconds
+        focus.update(seconds: duration.seconds.map { Int($0) })
+    }
+
+    /// The session ran out: fade the audio gently, then hand the card back to
+    /// its idle picker once the tail has actually gone.
+    private func expireSession() {
+        stop(fadeSeconds: Self.expiryFadeSeconds)
+        // stop() resets the display to the full duration via cancelFocusTimer;
+        // hold it at zero instead, so the countdown does not jump back up while
+        // the audio is still fading out.
+        focus.update(seconds: 0)
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.expiryFadeSeconds + 0.25) { [weak self] in
+            guard let self, !self.isPlaying else { return }
+            self.duration = .continuous
+        }
+    }
+
+    /// Cancels a running session from the UI, restoring the duration picker.
+    func cancelSession() {
+        duration = .continuous
     }
 
     // MARK: Visualiser polling
@@ -346,9 +374,5 @@ final class AudioEngineController: ObservableObject {
         return Float(low * pow(high / low, warmth))
     }
 
-    var remainingText: String? {
-        guard let remaining, duration.seconds != nil else { return nil }
-        let total = Int(remaining.rounded(.up))
-        return String(format: "%d:%02d", total / 60, total % 60)
-    }
+
 }

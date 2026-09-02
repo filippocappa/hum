@@ -94,14 +94,10 @@ struct PopoverView: View {
                     .padding(.vertical, 10)
                 }
 
-                CardSurface {
-                    VStack(spacing: 6) {
-                        SectionLabel(text: "Focus", trailing: engine.remainingText)
-                        FocusChips(selection: $engine.duration, accent: accent)
-                    }
-                    .padding(.horizontal, 11)
-                    .padding(.vertical, 10)
-                }
+                FocusCard(focus: engine.focus,
+                          duration: $engine.duration,
+                          accent: accent,
+                          onCancel: engine.cancelSession)
             }
             .padding(.top, 12)
             .padding(.bottom, 4)

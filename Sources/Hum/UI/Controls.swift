@@ -159,6 +159,71 @@ struct FocusChips: View {
     }
 }
 
+/// The focus card, in one of two states: the duration picker while idle, or a
+/// running session with a stop control and its countdown.
+struct FocusCard: View {
+    /// Held without observing — a tick must not re-render this card, only the
+    /// label that shows it. See `CountdownLabel`.
+    let focus: FocusTimerState
+    @Binding var duration: FocusDuration
+    var accent: Color
+    var onCancel: () -> Void
+
+    var body: some View {
+        CardSurface {
+            VStack(spacing: 7) {
+                SectionLabel(text: duration == .continuous ? "Focus" : "Session")
+
+                if duration == .continuous {
+                    FocusChips(selection: $duration, accent: accent)
+                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                } else {
+                    activeSession
+                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                }
+            }
+            .padding(.horizontal, 11)
+            .padding(.vertical, 10)
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: duration)
+    }
+
+    private var activeSession: some View {
+        HStack {
+            Button(action: onCancel) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 15))
+                    .foregroundStyle(.secondary)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .help("End this session")
+            .accessibilityLabel("End session")
+
+            Spacer()
+
+            CountdownLabel(focus: focus, accent: accent)
+        }
+        .frame(height: 20)
+    }
+}
+
+/// The only view that observes the countdown, so a tick invalidates this label
+/// alone rather than the card or the popover around it.
+private struct CountdownLabel: View {
+    @ObservedObject var focus: FocusTimerState
+    var accent: Color
+
+    var body: some View {
+        Text(focus.text)
+            .font(.system(.body, design: .monospaced).weight(.semibold))
+            .foregroundStyle(accent)
+            .contentTransition(.numericText(countsDown: true))
+            .animation(.easeOut(duration: 0.2), value: focus.secondsRemaining)
+            .accessibilityLabel("Time remaining")
+    }
+}
+
 /// Caption row above a control group.
 struct SectionLabel: View {
     let text: String
