@@ -21,11 +21,6 @@
 </tr>
 </table>
 
-<img src="assets/session-card.png" width="420" alt="Active focus session">
-
-*Start a focus session and the duration pills morph into a live countdown,
-with stop and play/pause alongside.*
-
 </div>
 
 ## What it is
